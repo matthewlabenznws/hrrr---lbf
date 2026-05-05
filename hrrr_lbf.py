@@ -6,6 +6,7 @@
 # 1 km Reflectivity + UH + Sim IR + Theta Cold Pools
 # + 4–6 km Storm-Relative Winds using 700–500 mb proxy
 # ============================================================
+import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -15,7 +16,6 @@ LBF_CWA_SHP = os.path.join(BASE_DIR, "assets/c_18mr25.shp")
 INTERSTATE_SHP = os.path.join(BASE_DIR, "assets/tl_2023_us_primaryroads.shp")
 LOGO_PATH = os.path.join(BASE_DIR, "assets/NOAANWSLogos.png")
 
-import os
 import glob
 import requests
 import numpy as np
