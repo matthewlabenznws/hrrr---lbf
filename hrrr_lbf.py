@@ -38,6 +38,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 OUTDIR = "site/images"
 os.makedirs(OUTDIR, exist_ok=True)
+os.makedirs("site", exist_ok=True)
 
 import zipfile
 
@@ -764,9 +765,9 @@ for fhr in fhrs:
         )
 
         outname = os.path.join(
-            OUTDIR,
-            f"hrrr_lbf_{cycle_date}_{cycle_hour:02d}z_f{fhr:03d}_refl_uh_ir_theta_sr46.png"
-        )
+                OUTDIR,
+                f"hrrr_lbf_f{fhr:03d}.png"
+                                            )
 
         plt.savefig(outname, dpi=200, bbox_inches="tight")
         plt.show()
