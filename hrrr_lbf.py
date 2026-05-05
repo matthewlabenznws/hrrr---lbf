@@ -36,7 +36,7 @@ from herbie import Herbie
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-OUTDIR = "latest_hrrr_lbf_refl_uh_ir_theta_sr46"
+OUTDIR = "site/images"
 os.makedirs(OUTDIR, exist_ok=True)
 
 import zipfile
