@@ -1,6 +1,6 @@
 name: Run HRRR LBF Plots
 
-"on":
+on:
   workflow_dispatch:
   schedule:
     - cron: "10 * * * *"
