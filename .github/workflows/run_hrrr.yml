@@ -1,6 +1,6 @@
 name: Run HRRR LBF Plots
 
-on:
+"on":
   schedule:
     - cron: "15 * * * *"
   workflow_dispatch:
@@ -8,7 +8,7 @@ on:
 jobs:
   run-hrrr:
     runs-on: ubuntu-latest
-
+    
     steps:
       - name: Check out repo
         uses: actions/checkout@v4
