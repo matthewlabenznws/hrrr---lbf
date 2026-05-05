@@ -7,15 +7,6 @@
 # + 4–6 km Storm-Relative Winds using 700–500 mb proxy
 # ============================================================
 import os
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-COUNTY_SHP = os.path.join(BASE_DIR, "assets/cb_2018_us_county_500k.shp")
-STATE_SHP  = os.path.join(BASE_DIR, "assets/cb_2018_us_state_500k.shp")
-LBF_CWA_SHP = os.path.join(BASE_DIR, "assets/c_18mr25.shp")
-INTERSTATE_SHP = os.path.join(BASE_DIR, "assets/tl_2023_us_primaryroads.shp")
-LOGO_PATH = os.path.join(BASE_DIR, "assets/NOAANWSLogos.png")
-
 import glob
 import requests
 import numpy as np
@@ -61,11 +52,14 @@ if os.path.exists(zip_path):
 LON_MIN, LON_MAX = -103.8, -97.0
 LAT_MIN, LAT_MAX = 40.0, 43.4
 
-COUNTY_SHP      = "/content/drive/MyDrive/Colab Notebooks/cb_2018_us_county_500k.shp"
-STATE_SHP       = "/content/drive/MyDrive/Colab Notebooks/cb_2018_us_state_500k.shp"
-LBF_CWA_SHP     = "/content/drive/MyDrive/Colab Notebooks/c_18mr25.shp"
-#INTERSTATE_SHP  = "/content/drive/MyDrive/Colab Notebooks/tl_2023_us_primaryroads.shp"
-LOGO_PATH       = "/content/drive/MyDrive/Colab Notebooks/NOAANWSLogos.png"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+COUNTY_SHP = os.path.join(BASE_DIR, "assets/cb_2018_us_county_500k.shp")
+STATE_SHP  = os.path.join(BASE_DIR, "assets/cb_2018_us_state_500k.shp")
+LBF_CWA_SHP = os.path.join(BASE_DIR, "assets/c_18mr25.shp")
+INTERSTATE_SHP = os.path.join(BASE_DIR, "assets/tl_2023_us_primaryroads.shp")
+LOGO_PATH = os.path.join(BASE_DIR, "assets/NOAANWSLogos.png")
+
 
 # Manual storm motion fallback
 MANUAL_STORM_MOTION_FROM_DEG = 250
