@@ -34,32 +34,29 @@ from matplotlib.colors import ListedColormap, BoundaryNorm
 from herbie import Herbie
 
 
-# ----------------------------
-# USER SETTINGS
-# ----------------------------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 OUTDIR = "latest_hrrr_lbf_refl_uh_ir_theta_sr46"
 os.makedirs(OUTDIR, exist_ok=True)
+
 import zipfile
 
-zip_path = os.path.join(BASE_DIR, "assets/c_18mr25.zip")
+zip_path = os.path.join(BASE_DIR, "assets", "c_18mr25.zip")
 extract_path = os.path.join(BASE_DIR, "assets")
 
 if os.path.exists(zip_path):
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+    with zipfile.ZipFile(zip_path, "r") as zip_ref:
         zip_ref.extractall(extract_path)
 
 # LBF domain
 LON_MIN, LON_MAX = -103.8, -97.0
 LAT_MIN, LAT_MAX = 40.0, 43.4
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-COUNTY_SHP = os.path.join(BASE_DIR, "assets/cb_2018_us_county_500k.shp")
-STATE_SHP  = os.path.join(BASE_DIR, "assets/cb_2018_us_state_500k.shp")
-LBF_CWA_SHP = os.path.join(BASE_DIR, "assets/c_18mr25.shp")
-INTERSTATE_SHP = os.path.join(BASE_DIR, "assets/tl_2023_us_primaryroads.shp")
-LOGO_PATH = os.path.join(BASE_DIR, "assets/NOAANWSLogos.png")
-
+COUNTY_SHP = os.path.join(BASE_DIR, "assets", "cb_2018_us_county_500k.shp")
+STATE_SHP = os.path.join(BASE_DIR, "assets", "cb_2018_us_state_500k.shp")
+LBF_CWA_SHP = os.path.join(BASE_DIR, "assets", "c_18mr25.shp")
+#INTERSTATE_SHP = os.path.join(BASE_DIR, "assets", "tl_2023_us_primaryroads.shp")
+LOGO_PATH = os.path.join(BASE_DIR, "assets", "NOAANWSLogos.png")
 
 # Manual storm motion fallback
 MANUAL_STORM_MOTION_FROM_DEG = 250
