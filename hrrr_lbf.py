@@ -36,7 +36,15 @@ from herbie import Herbie
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-OUTDIR = "site/images"
+cycle_str = f"{cycle_date}_{cycle_hour:02d}z"
+
+OUTDIR = os.path.join(
+    "site",
+    "runs",
+    cycle_str
+)
+
+os.makedirs(OUTDIR, exist_ok=True)
 os.makedirs(OUTDIR, exist_ok=True)
 os.makedirs("site", exist_ok=True)
 
@@ -778,34 +786,159 @@ for fhr in fhrs:
     except Exception as e:
         print(f"Failed F{fhr:03d}: {e}")
         continue
+os.makedirs("site", exist_ok=True)
+
 index_path = os.path.join("site", "index.html")
 
 with open(index_path, "w") as f:
-    f.write("""
+    f.write(f"""
 <!DOCTYPE html>
 <html>
 <head>
   <title>HRRR LBF Viewer</title>
   <style>
-    body { font-family: Arial, sans-serif; background:#111; color:white; text-align:center; }
-    img { max-width:95vw; max-height:82vh; border:1px solid #444; }
-    button { margin:3px; padding:6px 10px; background:#333; color:white; border:1px solid #777; cursor:pointer; }
-    button.active { background:#2b7cff; font-weight:bold; }
-    input { width:70%; margin:15px; }
+    body {{
+      margin: 0;
+      background: #111;
+      color: white;
+      font-family: Arial, Helvetica, sans-serif;
+      text-align: center;
+    }}
+
+    .topbar {{
+      background: linear-gradient(#2a2a2a, #151515);
+      border-bottom: 1px solid #444;
+      padding: 10px 14px;
+    }}
+
+    .title-row {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }}
+
+    .main-title {{
+      font-size: 18px;
+      font-weight: bold;
+      text-align: left;
+    }}
+
+    .meta {{
+      font-size: 13px;
+      color: #bbb;
+      text-align: right;
+    }}
+
+    .controls {{
+      background: #1b1b1b;
+      border-bottom: 1px solid #444;
+      padding: 8px 12px;
+      display: grid;
+      grid-template-columns: auto auto 1fr auto;
+      gap: 10px;
+      align-items: center;
+    }}
+
+    select, button {{
+      background: #2c2c2c;
+      color: white;
+      border: 1px solid #666;
+      padding: 6px 10px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-weight: bold;
+    }}
+
+    button:hover, select:hover {{
+      background: #3a3a3a;
+    }}
+
+    input[type="range"] {{
+      width: 100%;
+      accent-color: #2b7cff;
+    }}
+
+    .tiles {{
+      background: #0f0f0f;
+      border-bottom: 1px solid #444;
+      padding: 7px 8px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 3px;
+    }}
+
+    .tiles button {{
+      font-size: 12px;
+      min-width: 44px;
+      padding: 5px 8px;
+    }}
+
+    .tiles button.active {{
+      background: #2b7cff;
+      border-color: #9ec0ff;
+    }}
+
+    .image-wrap {{
+      padding: 10px 0 18px 0;
+    }}
+
+    #plot {{
+      max-width: 98vw;
+      max-height: calc(100vh - 190px);
+      border: 1px solid #333;
+      background: #000;
+    }}
+
+    .hint {{
+      color: #aaa;
+      font-size: 12px;
+      padding-bottom: 10px;
+    }}
   </style>
 </head>
+
 <body>
-  <h2>HRRR LBF Reflectivity / UH / SR Winds</h2>
-  <div id="subtitle"></div>
-  <input id="slider" type="range" min="0" max="48" value="0">
-  <div id="tiles"></div>
-  <br>
-  <button onclick="togglePlay()">Play/Pause</button>
-  <br><br>
-  <img id="plot" src="images/hrrr_lbf_f000.png">
+  <div class="topbar">
+    <div class="title-row">
+      <div>
+        <div class="main-title">HRRR | LBF Reflectivity / UH / Sim IR / θ Cold Pools / 4–6 km SR Winds</div>
+        <div class="meta" id="validText">Forecast Hour: F000</div>
+      </div>
+      <div class="meta">
+        Run:
+        <select id="runSelect" onchange="changeRun()"></select>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button onclick="togglePlay()" id="playBtn">▶ Play</button>
+    <button onclick="latestRun()">Latest</button>
+    <input id="slider" type="range" min="0" max="48" value="0">
+    <div id="fhrLabel">F000</div>
+  </div>
+
+  <div class="tiles" id="tiles"></div>
+
+  <div class="image-wrap">
+    <img id="plot" src="" alt="HRRR LBF plot">
+  </div>
+
+  <div class="hint">Use ←/→ arrow keys or forecast-hour buttons to step through frames.</div>
 
 <script>
 const maxFhr = 48;
+
+// Add archived runs here.
+// Newest run should be first.
+const runs = [
+  "{cycle_date}_{cycle_hour:02d}z"
+];
+
+let selectedRun = runs[0];
 let current = 0;
 let playing = false;
 let timer = null;
@@ -813,45 +946,99 @@ let timer = null;
 const plot = document.getElementById("plot");
 const slider = document.getElementById("slider");
 const tiles = document.getElementById("tiles");
-const subtitle = document.getElementById("subtitle");
+const validText = document.getElementById("validText");
+const fhrLabel = document.getElementById("fhrLabel");
+const playBtn = document.getElementById("playBtn");
+const runSelect = document.getElementById("runSelect");
 
-function fhrName(fhr) {
+function fhrName(fhr) {{
   return String(fhr).padStart(3, "0");
-}
+}}
 
-function setFrame(fhr) {
-  current = Number(fhr);
+function imgSrc(run, fhr) {{
+  return `runs/${{run}}/hrrr_lbf_f${{fhrName(fhr)}}.png?t=${{Date.now()}}`;
+}}
+
+function setFrame(fhr) {{
+  current = Math.max(0, Math.min(maxFhr, Number(fhr)));
   slider.value = current;
-  plot.src = `images/hrrr_lbf_f${fhrName(current)}.png?t=${Date.now()}`;
-  subtitle.innerHTML = `Forecast Hour: F${fhrName(current)}`;
+
+  const fhrString = `F${{fhrName(current)}}`;
+  plot.src = imgSrc(selectedRun, current);
+
+  validText.innerHTML = `Run: ${{selectedRun}} | Forecast Hour: ${{fhrString}}`;
+  fhrLabel.innerHTML = fhrString;
 
   document.querySelectorAll("button.frame").forEach(btn => btn.classList.remove("active"));
-  const active = document.getElementById(`btn${current}`);
+  const active = document.getElementById(`btn${{current}}`);
   if (active) active.classList.add("active");
-}
 
-for (let i = 0; i <= maxFhr; i++) {
+  preloadNeighbors(current);
+}}
+
+function preloadNeighbors(fhr) {{
+  [fhr + 1, fhr + 2, fhr - 1].forEach(n => {{
+    if (n >= 0 && n <= maxFhr) {{
+      const img = new Image();
+      img.src = imgSrc(selectedRun, n);
+    }}
+  }});
+}}
+
+function changeRun() {{
+  selectedRun = runSelect.value;
+  setFrame(current);
+}}
+
+function latestRun() {{
+  selectedRun = runs[0];
+  runSelect.value = selectedRun;
+  setFrame(0);
+}}
+
+function togglePlay() {{
+  playing = !playing;
+
+  if (playing) {{
+    playBtn.innerHTML = "⏸ Pause";
+    timer = setInterval(() => {{
+      current = current >= maxFhr ? 0 : current + 1;
+      setFrame(current);
+    }}, 650);
+  }} else {{
+    playBtn.innerHTML = "▶ Play";
+    clearInterval(timer);
+  }}
+}}
+
+for (let i = 0; i <= maxFhr; i++) {{
   const btn = document.createElement("button");
   btn.className = "frame";
-  btn.innerText = `F${fhrName(i)}`;
-  btn.id = `btn${i}`;
+  btn.innerText = `F${{fhrName(i)}}`;
+  btn.id = `btn${{i}}`;
   btn.onclick = () => setFrame(i);
   tiles.appendChild(btn);
-}
+}}
+
+runs.forEach(run => {{
+  const option = document.createElement("option");
+  option.value = run;
+  option.text = run;
+  runSelect.appendChild(option);
+}});
 
 slider.oninput = () => setFrame(slider.value);
 
-function togglePlay() {
-  playing = !playing;
-  if (playing) {
-    timer = setInterval(() => {
-      current = current >= maxFhr ? 0 : current + 1;
-      setFrame(current);
-    }, 700);
-  } else {
-    clearInterval(timer);
-  }
-}
+document.addEventListener("keydown", function(e) {{
+  if (e.key === "ArrowRight") {{
+    setFrame(current + 1);
+  }} else if (e.key === "ArrowLeft") {{
+    setFrame(current - 1);
+  }} else if (e.key === " ") {{
+    e.preventDefault();
+    togglePlay();
+  }}
+}});
 
 setFrame(0);
 </script>
