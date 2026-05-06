@@ -146,12 +146,15 @@ const maxFhr = 48;
 // Add archived runs here.
 // Newest run should be first.
 const runs = [
+  "20260506_21z",
   "20260506_20z",
   "20260506_19z",
   "20260506_18z",
   "20260506_17z",
   "20260506_16z"
 ];
+const imageBaseUrl = "https://pub-4692e0b2785741a0905f9b401343f27b.r2.dev
+";
 const domains = {
   "regional": "Default",
   "lbf": "LBF",
@@ -178,7 +181,7 @@ function fhrName(fhr) {
 }
 
 function imgSrc(run, fhr) {
-  return `runs/${run}/${selectedDomain}/hrrr_lbf_f${fhrName(fhr)}.png?t=${Date.now()}`;
+  return `${imageBaseUrl}/runs/${run}/${selectedDomain}/hrrr_lbf_f${fhrName(fhr)}.png?t=${Date.now()}`;
 }
 
 function setFrame(fhr) {
@@ -322,6 +325,9 @@ domainSelect.value = selectedDomain || "regional";
 selectedDomain = domainSelect.value;
 
 refreshHourAvailability();
+
+setInterval(refreshHourAvailability, 15000);
+
 setFrame(0);
 </script>
 </body>
