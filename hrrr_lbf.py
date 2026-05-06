@@ -387,142 +387,132 @@ print("Forecast hours:", list(fhrs))
 
 
 # ----------------------------
-# MAIN LOOP
+# MAIN LOOP - LOAD ONCE PER FORECAST HOUR
 # ----------------------------
-def run_plot_for_domain(domain_key, cfg, fhr):
+def load_hrrr_fields_once(fhr):
+    print("\n" + "=" * 70)
+    print(f"Loading HRRR once | HRRR {cycle_date} {cycle_hour:02d}Z F{fhr:03d}")
+    print("=" * 70)
+
+    refl_da = hrrr_field(cycle_date, cycle_hour, fhr, "nat", ":REFD:1000 m", "1 km reflectivity")
+    lat, lon = get_lat_lon(refl_da)
+
+    refl = np.asarray(refl_da.values, dtype=float)
+    refl = np.where(refl >= REF_LEVELS[0], refl, np.nan)
+
+    uh25_da = hrrr_field(cycle_date, cycle_hour, fhr, "sfc", ":MXUPHL:5000-2000 m", "2–5 km UH")
+    uh03_da = hrrr_field(cycle_date, cycle_hour, fhr, "sfc", ":MXUPHL:3000-0 m", "0–3 km UH")
+
+    uh25 = np.asarray(uh25_da.values, dtype=float)
+    uh03 = np.asarray(uh03_da.values, dtype=float)
+
+    ir_da = hrrr_field(cycle_date, cycle_hour, fhr, "sfc", ":SBT123:", "simulated IR brightness temperature")
+    ir_c = k_to_c(ir_da.values)
+
+    t2_da = hrrr_field(cycle_date, cycle_hour, fhr, "sfc", ":TMP:2 m", "2m temperature")
+    ps_da = hrrr_field(cycle_date, cycle_hour, fhr, "sfc", ":PRES:surface", "surface pressure")
+
+    t2_k = np.asarray(t2_da.values, dtype=float)
+    ps_pa = np.asarray(ps_da.values, dtype=float)
+
+    theta = t2_k * (100000.0 / ps_pa) ** 0.286
+    theta_bg = gaussian_filter(theta, sigma=18)
+    theta_prime = theta - theta_bg
+
+    u700_da = hrrr_field(cycle_date, cycle_hour, fhr, "prs", ":UGRD:700 mb", "700 mb u wind")
+    v700_da = hrrr_field(cycle_date, cycle_hour, fhr, "prs", ":VGRD:700 mb", "700 mb v wind")
+    u600_da = hrrr_field(cycle_date, cycle_hour, fhr, "prs", ":UGRD:600 mb", "600 mb u wind")
+    v600_da = hrrr_field(cycle_date, cycle_hour, fhr, "prs", ":VGRD:600 mb", "600 mb v wind")
+    u500_da = hrrr_field(cycle_date, cycle_hour, fhr, "prs", ":UGRD:500 mb", "500 mb u wind")
+    v500_da = hrrr_field(cycle_date, cycle_hour, fhr, "prs", ":VGRD:500 mb", "500 mb v wind")
+
+    pr_lat, pr_lon = get_lat_lon(u700_da)
+
+    u46_pr = np.nanmean(np.stack([
+        np.asarray(u700_da.values, dtype=float),
+        np.asarray(u600_da.values, dtype=float),
+        np.asarray(u500_da.values, dtype=float)
+    ]), axis=0)
+
+    v46_pr = np.nanmean(np.stack([
+        np.asarray(v700_da.values, dtype=float),
+        np.asarray(v600_da.values, dtype=float),
+        np.asarray(v500_da.values, dtype=float)
+    ]), axis=0)
+
+    try:
+        storm_u_da = hrrr_field(cycle_date, cycle_hour, fhr, "sfc", ":USTM:", "storm motion u")
+        storm_v_da = hrrr_field(cycle_date, cycle_hour, fhr, "sfc", ":VSTM:", "storm motion v")
+
+        storm_u_native = np.asarray(storm_u_da.values, dtype=float)
+        storm_v_native = np.asarray(storm_v_da.values, dtype=float)
+
+    except Exception:
+        storm_u_scalar, storm_v_scalar = wind_from_dir_speed_to_uv(
+            MANUAL_STORM_MOTION_FROM_DEG,
+            kt_to_ms(MANUAL_STORM_MOTION_SPEED_KT)
+        )
+        storm_u_native = np.full_like(refl, storm_u_scalar)
+        storm_v_native = np.full_like(refl, storm_v_scalar)
+
+    u46_native = interp_to_target_grid(pr_lat, pr_lon, u46_pr, lat, lon)
+    v46_native = interp_to_target_grid(pr_lat, pr_lon, v46_pr, lat, lon)
+
+    sr_u46 = u46_native - storm_u_native
+    sr_v46 = v46_native - storm_v_native
+    sr46_kt = ms_to_kt(np.sqrt(sr_u46**2 + sr_v46**2))
+
+    return {
+        "lat": lat,
+        "lon": lon,
+        "refl": refl,
+        "uh25": uh25,
+        "uh03": uh03,
+        "ir_c": ir_c,
+        "theta_prime": theta_prime,
+        "sr46_kt": sr46_kt,
+        "sr_u46": sr_u46,
+        "sr_v46": sr_v46,
+    }
+
+
+def plot_domain_from_fields(fields, domain_key, cfg, fhr):
     global LON_MIN, LON_MAX, LAT_MIN, LAT_MAX
 
     LON_MIN, LON_MAX, LAT_MIN, LAT_MAX = cfg["extent"]
 
-    domain_outdir = os.path.join(
-        "site",
-        "runs",
-        cycle_str,
-        domain_key
-    )
+    domain_outdir = os.path.join("site", "runs", cycle_str, domain_key)
     os.makedirs(domain_outdir, exist_ok=True)
 
-    print("\n" + "=" * 70)
-    print(f"Processing {domain_key.upper()} | HRRR {cycle_date} {cycle_hour:02d}Z F{fhr:03d}")
-    print("=" * 70)
+    print(f"Plotting {domain_key.upper()} | F{fhr:03d}")
 
     try:
-        # Reflectivity
-        refl_da = hrrr_field(cycle_date, cycle_hour, fhr, "nat", ":REFD:1000 m", "1 km reflectivity")
+        lat = fields["lat"]
+        lon = fields["lon"]
+        refl = fields["refl"]
+        uh25 = fields["uh25"]
+        uh03 = fields["uh03"]
+        ir_c = fields["ir_c"]
+        theta_prime = fields["theta_prime"]
+        sr46_kt = fields["sr46_kt"]
+        sr_u46 = fields["sr_u46"]
+        sr_v46 = fields["sr_v46"]
 
-        lat, lon = get_lat_lon(refl_da)
-        refl = np.asarray(refl_da.values, dtype=float)
-        refl = np.where(refl >= REF_LEVELS[0], refl, np.nan)
-
-        # UH
-        uh25_da = hrrr_field(cycle_date, cycle_hour, fhr, "sfc", ":MXUPHL:5000-2000 m", "2–5 km UH")
-        uh03_da = hrrr_field(cycle_date, cycle_hour, fhr, "sfc", ":MXUPHL:3000-0 m", "0–3 km UH")
-
-        uh25 = np.asarray(uh25_da.values, dtype=float)
-        uh03 = np.asarray(uh03_da.values, dtype=float)
-
-        # Simulated IR
-        ir_da = hrrr_field(cycle_date, cycle_hour, fhr, "sfc", ":SBT123:", "simulated IR brightness temperature")
-        ir_c = k_to_c(ir_da.values)
-
-        # Theta cold pools
-        t2_da = hrrr_field(cycle_date, cycle_hour, fhr, "sfc", ":TMP:2 m", "2m temperature")
-        ps_da = hrrr_field(cycle_date, cycle_hour, fhr, "sfc", ":PRES:surface", "surface pressure")
-
-        t2_k = np.asarray(t2_da.values, dtype=float)
-        ps_pa = np.asarray(ps_da.values, dtype=float)
-
-        theta = t2_k * (100000.0 / ps_pa) ** 0.286
-        theta_bg = gaussian_filter(theta, sigma=18)
-        theta_prime = theta - theta_bg
-
-        # 700/600/500 mb winds
-        u700_da = hrrr_field(cycle_date, cycle_hour, fhr, "prs", ":UGRD:700 mb", "700 mb u wind")
-        v700_da = hrrr_field(cycle_date, cycle_hour, fhr, "prs", ":VGRD:700 mb", "700 mb v wind")
-        u600_da = hrrr_field(cycle_date, cycle_hour, fhr, "prs", ":UGRD:600 mb", "600 mb u wind")
-        v600_da = hrrr_field(cycle_date, cycle_hour, fhr, "prs", ":VGRD:600 mb", "600 mb v wind")
-        u500_da = hrrr_field(cycle_date, cycle_hour, fhr, "prs", ":UGRD:500 mb", "500 mb u wind")
-        v500_da = hrrr_field(cycle_date, cycle_hour, fhr, "prs", ":VGRD:500 mb", "500 mb v wind")
-
-        pr_lat, pr_lon = get_lat_lon(u700_da)
-
-        u46_pr = np.nanmean(
-            np.stack([
-                np.asarray(u700_da.values, dtype=float),
-                np.asarray(u600_da.values, dtype=float),
-                np.asarray(u500_da.values, dtype=float)
-            ]),
-            axis=0
-        )
-
-        v46_pr = np.nanmean(
-            np.stack([
-                np.asarray(v700_da.values, dtype=float),
-                np.asarray(v600_da.values, dtype=float),
-                np.asarray(v500_da.values, dtype=float)
-            ]),
-            axis=0
-        )
-
-        # Storm motion
-        try:
-            storm_u_da = hrrr_field(cycle_date, cycle_hour, fhr, "sfc", ":USTM:", "storm motion u")
-            storm_v_da = hrrr_field(cycle_date, cycle_hour, fhr, "sfc", ":VSTM:", "storm motion v")
-
-            storm_u_native = np.asarray(storm_u_da.values, dtype=float)
-            storm_v_native = np.asarray(storm_v_da.values, dtype=float)
-
-        except Exception:
-            storm_u_scalar, storm_v_scalar = wind_from_dir_speed_to_uv(
-                MANUAL_STORM_MOTION_FROM_DEG,
-                kt_to_ms(MANUAL_STORM_MOTION_SPEED_KT)
-            )
-            storm_u_native = np.full_like(refl, storm_u_scalar)
-            storm_v_native = np.full_like(refl, storm_v_scalar)
-
-        # Interpolate pressure winds to native grid
-        u46_native = interp_to_target_grid(pr_lat, pr_lon, u46_pr, lat, lon)
-        v46_native = interp_to_target_grid(pr_lat, pr_lon, v46_pr, lat, lon)
-
-        sr_u46 = u46_native - storm_u_native
-        sr_v46 = v46_native - storm_v_native
-        sr46_kt = ms_to_kt(np.sqrt(sr_u46**2 + sr_v46**2))
-
-        # Subset to selected domain
         lat_sub, lon_sub, [
-            refl_sub,
-            uh25_sub,
-            uh03_sub,
-            ir_sub,
-            theta_prime_sub,
-            sr46_sub,
-            sr_u46_sub,
-            sr_v46_sub
+            refl_sub, uh25_sub, uh03_sub, ir_sub,
+            theta_prime_sub, sr46_sub, sr_u46_sub, sr_v46_sub
         ] = subset_2d(
-            lat,
-            lon,
-            refl,
-            uh25,
-            uh03,
-            ir_c,
-            theta_prime,
-            sr46_kt,
-            sr_u46,
-            sr_v46
+            lat, lon, refl, uh25, uh03, ir_c,
+            theta_prime, sr46_kt, sr_u46, sr_v46
         )
 
-        # Smooth/mask
         refl_plot = gaussian_filter(np.nan_to_num(refl_sub, nan=0.0), sigma=0.5)
         refl_plot = np.where(refl_plot >= 5, refl_plot, np.nan)
 
         uh25_plot = gaussian_filter(uh25_sub, sigma=0.2)
         uh03_plot = gaussian_filter(uh03_sub, sigma=0.2)
 
-        uh_combined = np.where(
-            (uh25_plot >= 75) | (uh03_plot >= 50),
-            1,
-            np.nan
-        )
+        uh_combined = np.where((uh25_plot >= 75) | (uh03_plot >= 50), 1, np.nan)
 
         theta_prime_smooth = gaussian_filter(theta_prime_sub, sigma=2.5)
         theta_cp_mask = np.ma.masked_where(theta_prime_smooth > -2.0, theta_prime_smooth)
@@ -530,7 +520,6 @@ def run_plot_for_domain(domain_key, cfg, fhr):
         ir_smooth = gaussian_filter(ir_sub, sigma=4.0)
         ir_mask = np.ma.masked_where(ir_smooth > -40, ir_smooth)
 
-        # Plot
         plt.close("all")
         plt.rcParams["hatch.color"] = "#b7d6ff"
         plt.rcParams["hatch.linewidth"] = 0.7
@@ -542,7 +531,6 @@ def run_plot_for_domain(domain_key, cfg, fhr):
         ax.set_extent(cfg["extent"], crs=ccrs.PlateCarree())
         ax.add_feature(cfeature.LAND, facecolor="white", zorder=0)
 
-        # Sim IR
         ax.contourf(
             lon_sub, lat_sub, ir_mask,
             levels=[-130, -40],
@@ -552,7 +540,6 @@ def run_plot_for_domain(domain_key, cfg, fhr):
             zorder=2
         )
 
-        # Theta cold pools
         ax.contourf(
             lon_sub, lat_sub, theta_cp_mask,
             levels=[-30, -2],
@@ -571,7 +558,6 @@ def run_plot_for_domain(domain_key, cfg, fhr):
             zorder=4
         )
 
-        # Reflectivity
         pm = ax.contourf(
             lon_sub, lat_sub, refl_plot,
             levels=bounds,
@@ -582,7 +568,6 @@ def run_plot_for_domain(domain_key, cfg, fhr):
             zorder=5
         )
 
-        # UH fill and outlines
         ax.contourf(
             lon_sub, lat_sub, uh_combined,
             levels=[0.5, 1.5],
@@ -610,7 +595,6 @@ def run_plot_for_domain(domain_key, cfg, fhr):
             zorder=10
         )
 
-        # 4–6 km SR wind barbs
         if PLOT_SR_WIND_BARBS:
             barb_skip = cfg.get("barb_skip", BARB_SKIP)
 
@@ -626,11 +610,9 @@ def run_plot_for_domain(domain_key, cfg, fhr):
                 zorder=23
             )
 
-        # Map features
         add_shapefile_outline(ax, STATE_SHP, edgecolor="black", linewidth=1.4, zorder=13)
         add_shapefile_outline(ax, COUNTY_SHP, edgecolor="lightgray", linewidth=0.35, zorder=12)
 
-        # Only add the LBF outline/counties on domains where it makes sense
         add_counties_clipped_to_cwa(ax, COUNTY_SHP, lbf_geom, lw=1.0, color="black", zorder=13)
 
         ax.add_geometries(
@@ -654,7 +636,6 @@ def run_plot_for_domain(domain_key, cfg, fhr):
         if PLOT_CITY_LABELS:
             plot_city_labels(ax, STATIONS, zorder=40, fontsize=9)
 
-        # Pivotal-style title
         init_dt = datetime.strptime(f"{cycle_date}{cycle_hour:02d}", "%Y%m%d%H")
         valid_dt = init_dt + timedelta(hours=fhr)
 
@@ -663,7 +644,7 @@ def run_plot_for_domain(domain_key, cfg, fhr):
             "0-3km UH > 50, Sim. IR, θ Cold Pools, 4-6 km SR Winds"
         )
         valid_title = f"F{fhr:03d} Valid: {valid_dt:%a %Y-%m-%d %Hz}"
-        init_title  = f"Init: {init_dt:%a %Y-%m-%d %Hz} HRRR"
+        init_title = f"Init: {init_dt:%a %Y-%m-%d %Hz} HRRR"
 
         ax.text(
             0.0, 1.042,
@@ -695,7 +676,6 @@ def run_plot_for_domain(domain_key, cfg, fhr):
             fontweight="bold"
         )
 
-        # Colorbar
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("bottom", size="3%", pad=0.25, axes_class=plt.Axes)
 
@@ -711,7 +691,6 @@ def run_plot_for_domain(domain_key, cfg, fhr):
         cbar.ax.xaxis.set_label_position("top")
         cbar.ax.tick_params(axis="x", which="both", length=0)
 
-        # Logo
         if os.path.exists(LOGO_PATH):
             logo = mpimg.imread(LOGO_PATH)
             logo_ax = fig.add_axes(cfg["logo_ax"], zorder=30)
@@ -743,10 +722,7 @@ def run_plot_for_domain(domain_key, cfg, fhr):
             path_effects=[pe.withStroke(linewidth=2.5, foreground="white")]
         )
 
-        outname = os.path.join(
-            domain_outdir,
-            f"hrrr_lbf_f{fhr:03d}.png"
-        )
+        outname = os.path.join(domain_outdir, f"hrrr_lbf_f{fhr:03d}.png")
 
         plt.savefig(outname, dpi=140, bbox_inches="tight")
         plt.close(fig)
@@ -757,9 +733,11 @@ def run_plot_for_domain(domain_key, cfg, fhr):
         print(f"Failed {domain_key.upper()} F{fhr:03d}: {e}")
 
 
-for domain_key, cfg in DOMAINS.items():
-    for fhr in fhrs:
-        run_plot_for_domain(domain_key, cfg, fhr)
+for fhr in fhrs:
+    fields = load_hrrr_fields_once(fhr)
+
+    for domain_key, cfg in DOMAINS.items():
+        plot_domain_from_fields(fields, domain_key, cfg, fhr)
         
 runs_dir = os.path.join("site", "runs")
 os.makedirs(runs_dir, exist_ok=True)
