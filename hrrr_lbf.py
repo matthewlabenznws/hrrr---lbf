@@ -757,11 +757,9 @@ def run_plot_for_domain(domain_key, cfg, fhr):
         print(f"Failed {domain_key.upper()} F{fhr:03d}: {e}")
 
 
-for fhr in fhrs:
-    fields = load_hrrr_fields(fhr)
-
-    for domain_key, cfg in DOMAINS.items():
-        plot_domain(fields, domain_key, cfg, fhr)
+for domain_key, cfg in DOMAINS.items():
+    for fhr in fhrs:
+        run_plot_for_domain(domain_key, cfg, fhr)
         
 runs_dir = os.path.join("site", "runs")
 os.makedirs(runs_dir, exist_ok=True)
@@ -1065,6 +1063,31 @@ function changeDomain() {{
   selectedDomain = domainSelect.value;
   setFrame(current);
 }}
+function refreshHourAvailability() {{
+  for (let i = 0; i <= maxFhr; i++) {{
+
+    const btn = document.getElementById(`btn${{i}}`);
+
+    if (!btn) continue;
+
+    btn.classList.remove("available", "missing");
+    btn.classList.add("missing");
+
+    const testImg = new Image();
+
+    testImg.onload = () => {{
+      btn.classList.remove("missing");
+      btn.classList.add("available");
+    }};
+
+    testImg.onerror = () => {{
+      btn.classList.remove("available");
+      btn.classList.add("missing");
+    }};
+
+    testImg.src = imgSrc(selectedRun, i);
+  }}
+}}
 
 slider.oninput = () => setFrame(slider.value);
 
@@ -1079,6 +1102,11 @@ document.addEventListener("keydown", function(e) {{
   }}
 }});
 
+runSelect.value = selectedRun;
+domainSelect.value = selectedDomain || "Default";
+selectedDomain = domainSelect.value;
+
+refreshHourAvailability();
 setFrame(0);
 </script>
 </body>
