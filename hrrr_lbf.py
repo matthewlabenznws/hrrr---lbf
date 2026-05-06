@@ -666,7 +666,7 @@ def run_plot_for_domain(domain_key, cfg, fhr):
         init_title  = f"Init: {init_dt:%a %Y-%m-%d %Hz} HRRR"
 
         ax.text(
-            0.0, 1.035,
+            0.0, 1.042,
             main_title,
             transform=ax.transAxes,
             ha="left",
