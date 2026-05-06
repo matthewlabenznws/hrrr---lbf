@@ -1017,12 +1017,27 @@ for (let i = 0; i <= maxFhr; i++) {{
   tiles.appendChild(btn);
 }}
 
-runs.forEach(run => {{
+function prettyRun(run) {
+  const parts = run.split("_");
+
+  const ymd = parts[0];
+  const hour = parts[1].replace("z", "");
+
+  const year  = ymd.slice(0,4);
+  const month = ymd.slice(4,6);
+  const day   = ymd.slice(6,8);
+
+  return `Tue ${year}-${month}-${day} ${hour}z`;
+}
+
+runs.forEach(run => {
   const option = document.createElement("option");
+
   option.value = run;
-  option.text = run;
+  option.text = prettyRun(run);
+
   runSelect.appendChild(option);
-}});
+});
 
 slider.oninput = () => setFrame(slider.value);
 
