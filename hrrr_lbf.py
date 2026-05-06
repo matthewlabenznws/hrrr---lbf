@@ -963,7 +963,7 @@ function setFrame(fhr) {{
   const fhrString = `F${{fhrName(current)}}`;
   plot.src = imgSrc(selectedRun, current);
 
-  validText.innerHTML = `Run: ${{selectedRun}} | Forecast Hour: ${{fhrString}}`;
+  validText.innerHTML = `Run: ${{prettyRun(selectedRun)}} | Forecast Hour: ${{fhrString}}`;
   fhrLabel.innerHTML = fhrString;
 
   document.querySelectorAll("button.frame").forEach(btn => btn.classList.remove("active"));
