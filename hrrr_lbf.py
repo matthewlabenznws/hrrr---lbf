@@ -1017,7 +1017,7 @@ for (let i = 0; i <= maxFhr; i++) {{
   tiles.appendChild(btn);
 }}
 
-function prettyRun(run) {
+function prettyRun(run) {{
   const parts = run.split("_");
 
   const ymd = parts[0];
@@ -1027,8 +1027,8 @@ function prettyRun(run) {
   const month = ymd.slice(4,6);
   const day   = ymd.slice(6,8);
 
-  return `Tue ${year}-${month}-${day} ${hour}z`;
-}
+  return `Tue ${{year}}-${{month}}-${{day}} ${{hour}}z`;
+}}
 
 runs.forEach(run => {
   const option = document.createElement("option");
