@@ -938,8 +938,8 @@ const runs = [
   {runs_js}
 ];
 const domains = {{
-  "lbf": "LBF",
   "regional": "Default",
+  "lbf": "LBF",
   "central_plains": "Central Plains"
 }};
 
