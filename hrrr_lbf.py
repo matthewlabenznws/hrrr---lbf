@@ -936,11 +936,11 @@ const maxFhr = 48;
 const runs = [
   {runs_js}
 ];
-const domains = {
+const domains = {{
   "lbf": "LBF",
   "regional": "Default",
   "central_plains": "Central Plains"
-};
+}};
 
 let selectedDomain = "Default";
 const domainSelect = document.getElementById("domainSelect");
