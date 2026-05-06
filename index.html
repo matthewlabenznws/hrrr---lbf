@@ -115,12 +115,16 @@
         <div class="meta" id="validText">Forecast Hour: F000</div>
       </div>
       <div class="meta">
-        Run:
-        <select id="runSelect" onchange="changeRun()"></select>
+  Run:
+  <select id="runSelect" onchange="changeRun()"></select>
+
+  &nbsp;&nbsp;
+
+  Domain:
+  <select id="domainSelect" onchange="changeDomain()"></select>
+</div>
       </div>
     </div>
-  </div>
-
   <div class="controls">
     <button onclick="togglePlay()" id="playBtn">▶ Play</button>
     <button onclick="latestRun()">Latest</button>
@@ -146,7 +150,14 @@ const runs = [
   "20260506_17z",
   "20260506_16z"
 ];
+const domains = {
+  "lbf": "LBF",
+  "regional": "Default",
+  "central_plains": "Central Plains"
+};
 
+let selectedDomain = "Default";
+const domainSelect = document.getElementById("domainSelect");
 let selectedRun = runs[0];
 let current = 0;
 let playing = false;
@@ -165,7 +176,7 @@ function fhrName(fhr) {
 }
 
 function imgSrc(run, fhr) {
-  return `runs/${run}/hrrr_lbf_f${fhrName(fhr)}.png?t=${Date.now()}`;
+  return `runs/${run}/${selectedDomain}/hrrr_lbf_f${fhrName(fhr)}.png?t=${Date.now()}`;
 }
 
 function setFrame(fhr) {
@@ -250,6 +261,20 @@ runs.forEach(run => {
 
   runSelect.appendChild(option);
 });
+
+Object.entries(domains).forEach(([key, label]) => {
+  const option = document.createElement("option");
+
+  option.value = key;
+  option.text = label;
+
+  domainSelect.appendChild(option);
+});
+
+function changeDomain() {
+  selectedDomain = domainSelect.value;
+  setFrame(current);
+}
 
 slider.oninput = () => setFrame(slider.value);
 
