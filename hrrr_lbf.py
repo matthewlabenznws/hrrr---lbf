@@ -783,6 +783,27 @@ for fhr in fhrs:
     except Exception as e:
         print(f"Failed F{fhr:03d}: {e}")
         continue
+runs_dir = os.path.join("site", "runs")
+os.makedirs(runs_dir, exist_ok=True)
+
+all_runs = sorted(
+    [
+        d for d in os.listdir(runs_dir)
+        if os.path.isdir(os.path.join(runs_dir, d))
+    ],
+    reverse=True
+)
+
+keep_runs = all_runs[:6]
+
+# Delete older runs
+for old_run in all_runs[6:]:
+    old_path = os.path.join(runs_dir, old_run)
+
+    import shutil
+    shutil.rmtree(old_path, ignore_errors=True)
+
+runs_js = ",\n  ".join([f'"{r}"' for r in keep_runs])
 os.makedirs("site", exist_ok=True)
 
 index_path = os.path.join("site", "index.html")
@@ -932,7 +953,7 @@ const maxFhr = 48;
 // Add archived runs here.
 // Newest run should be first.
 const runs = [
-  "{cycle_date}_{cycle_hour:02d}z"
+  {runs_js}
 ];
 
 let selectedRun = runs[0];
