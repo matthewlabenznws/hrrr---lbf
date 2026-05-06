@@ -961,9 +961,9 @@ function fhrName(fhr) {{
   return String(fhr).padStart(3, "0");
 }}
 
-function imgSrc(run, fhr) {
-  return `runs/${run}/${selectedDomain}/hrrr_lbf_f${fhrName(fhr)}.png?t=${Date.now()}`;
-}
+function imgSrc(run, fhr) {{
+  return `runs/${{run}}/${{selectedDomain}}/hrrr_lbf_f${{fhrName(fhr)}}.png?t=${{Date.now()}}`;
+}}
 
 function setFrame(fhr) {{
   current = Math.max(0, Math.min(maxFhr, Number(fhr)));
