@@ -32,8 +32,7 @@ import geopandas as gpd
 
 from matplotlib.colors import ListedColormap, BoundaryNorm
 from herbie import Herbie
-import boto3
-from botocore.client import Config
+
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -45,53 +44,7 @@ extract_path = os.path.join(BASE_DIR, "assets")
 if os.path.exists(zip_path):
     with zipfile.ZipFile(zip_path, "r") as zip_ref:
         zip_ref.extractall(extract_path)
-# ----------------------------
-# CLOUDFLARE R2 SETTINGS
-# ----------------------------
-R2_ACCOUNT_ID = os.environ.get("R2_ACCOUNT_ID")
-R2_ACCESS_KEY_ID = os.environ.get("R2_ACCESS_KEY_ID")
-R2_SECRET_ACCESS_KEY = os.environ.get("R2_SECRET_ACCESS_KEY")
-R2_BUCKET = os.environ.get("R2_BUCKET")
-R2_PUBLIC_BASE_URL = os.environ.get("R2_PUBLIC_BASE_URL", "").rstrip("/")
 
-USE_R2 = all([
-    R2_ACCOUNT_ID,
-    R2_ACCESS_KEY_ID,
-    R2_SECRET_ACCESS_KEY,
-    R2_BUCKET,
-    R2_PUBLIC_BASE_URL
-])
-
-if USE_R2:
-    s3 = boto3.client(
-        "s3",
-        endpoint_url=f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com",
-        aws_access_key_id=R2_ACCESS_KEY_ID,
-        aws_secret_access_key=R2_SECRET_ACCESS_KEY,
-        config=Config(signature_version="s3v4"),
-        region_name="auto",
-    )
-else:
-    s3 = None
-    print("R2 secrets not found. Skipping live R2 uploads.")
-
-
-def upload_to_r2(local_path, object_key):
-    if not USE_R2:
-        return
-
-    s3.upload_file(
-        local_path,
-        R2_BUCKET,
-        object_key,
-        ExtraArgs={
-            "ContentType": "image/png",
-            "CacheControl": "no-cache"
-        }
-    )
-
-    print(f"Uploaded to R2: {R2_PUBLIC_BASE_URL}/{object_key}")
-    
 DOMAINS = {
     "lbf": {
         "label": "LBF",
@@ -138,7 +91,7 @@ MANUAL_STORM_MOTION_FROM_DEG = 250
 MANUAL_STORM_MOTION_SPEED_KT = 35
 
 # Loop settings
-MAX_FHR = 1
+MAX_FHR = 18
 START_FHR = 0
 PLOT_SR_WIND_BARBS = True
 BARB_SKIP = 11
@@ -776,9 +729,6 @@ def plot_domain_from_fields(fields, domain_key, cfg, fhr):
 
         print("Saved:", outname)
 
-        object_key = f"runs/{cycle_str}/{domain_key}/hrrr_lbf_f{fhr:03d}.png"
-        upload_to_r2(outname, object_key)
-
     except Exception as e:
         print(f"Failed {domain_key.upper()} F{fhr:03d}: {e}")
 
@@ -808,12 +758,6 @@ for old_run in all_runs[6:]:
 
     import shutil
     shutil.rmtree(old_path, ignore_errors=True)
-
-# Always include the current run so the dropdown is never empty
-if cycle_str not in keep_runs:
-    keep_runs = [cycle_str] + keep_runs
-
-keep_runs = keep_runs[:6]
 
 runs_js = ",\n  ".join([f'"{r}"' for r in keep_runs])
 os.makedirs("site", exist_ok=True)
@@ -910,22 +854,7 @@ with open(index_path, "w") as f:
       background: #2b7cff;
       border-color: #9ec0ff;
     }}
-    .tiles button.available {{
-      background: #2b7cff;
-      color: white;
-      border-color: #9ec0ff;
-    }}
 
-    .tiles button.missing {{
-      background: #111;
-      color: #aaa;
-      border-color: #555;
-    }}
-
-    .tiles button.active {{
-      outline: 2px solid white;
-      font-weight: bold;
-        }}
     .image-wrap {{
       padding: 10px 0 18px 0;
     }}
@@ -979,22 +908,22 @@ with open(index_path, "w") as f:
   <div class="hint">Use ←/→ arrow keys or forecast-hour buttons to step through frames.</div>
 
 <script>
-<script>
 const maxFhr = 48;
-const imageBaseUrl = "{R2_PUBLIC_BASE_URL}";
 
+// Add archived runs here.
+// Newest run should be first.
 const runs = [
   {runs_js}
 ];
-
 const domains = {{
   "regional": "Default",
   "lbf": "LBF",
   "central_plains": "Central Plains"
 }};
 
-let selectedRun = runs.length > 0 ? runs[0] : "{cycle_str}";
 let selectedDomain = "regional";
+const domainSelect = document.getElementById("domainSelect");
+let selectedRun = runs[0];
 let current = 0;
 let playing = false;
 let timer = null;
@@ -1006,66 +935,49 @@ const validText = document.getElementById("validText");
 const fhrLabel = document.getElementById("fhrLabel");
 const playBtn = document.getElementById("playBtn");
 const runSelect = document.getElementById("runSelect");
-const domainSelect = document.getElementById("domainSelect");
 
 function fhrName(fhr) {{
   return String(fhr).padStart(3, "0");
 }}
 
 function imgSrc(run, fhr) {{
-  if (!run || !selectedDomain || !imageBaseUrl) return "";
-  return `${{imageBaseUrl}}/runs/${{run}}/${{selectedDomain}}/hrrr_lbf_f${{fhrName(fhr)}}.png?t=${{Date.now()}}`;
-}}
-
-function prettyRun(run) {{
-  if (!run) return "No runs yet";
-
-  const parts = run.split("_");
-  const ymd = parts[0];
-  const hour = parts[1].replace("z", "");
-
-  const year  = ymd.slice(0,4);
-  const month = ymd.slice(4,6);
-  const day   = ymd.slice(6,8);
-
-  return `${{year}}-${{month}}-${{day}} ${{hour}}z`;
+  return `runs/${{run}}/${{selectedDomain}}/hrrr_lbf_f${{fhrName(fhr)}}.png?t=${{Date.now()}}`;
 }}
 
 function setFrame(fhr) {{
   current = Math.max(0, Math.min(maxFhr, Number(fhr)));
   slider.value = current;
 
-  const fhrString = fhrName(current);
-  const src = imgSrc(selectedRun, current);
+  const fhrString = `F${{fhrName(current)}}`;
+  plot.src = imgSrc(selectedRun, current);
 
-  if (src) {{
-    plot.src = src;
-  }}
-
-  validText.innerHTML = `${{prettyRun(selectedRun)}} | ${{domains[selectedDomain]}} | Hour ${{fhrString}}`;
+  validText.innerHTML = `Run: ${{prettyRun(selectedRun)}} | Forecast Hour: ${{fhrString}}`;
   fhrLabel.innerHTML = fhrString;
 
   document.querySelectorAll("button.frame").forEach(btn => btn.classList.remove("active"));
   const active = document.getElementById(`btn${{current}}`);
   if (active) active.classList.add("active");
+
+  preloadNeighbors(current);
+}}
+
+function preloadNeighbors(fhr) {{
+  [fhr + 1, fhr + 2, fhr - 1].forEach(n => {{
+    if (n >= 0 && n <= maxFhr) {{
+      const img = new Image();
+      img.src = imgSrc(selectedRun, n);
+    }}
+  }});
 }}
 
 function changeRun() {{
   selectedRun = runSelect.value;
-  refreshHourAvailability();
-  setFrame(current);
-}}
-
-function changeDomain() {{
-  selectedDomain = domainSelect.value || "regional";
-  refreshHourAvailability();
   setFrame(current);
 }}
 
 function latestRun() {{
   selectedRun = runs[0];
   runSelect.value = selectedRun;
-  refreshHourAvailability();
   setFrame(0);
 }}
 
@@ -1086,30 +998,54 @@ function togglePlay() {{
 
 for (let i = 0; i <= maxFhr; i++) {{
   const btn = document.createElement("button");
-  btn.className = "frame missing";
-  btn.innerText = fhrName(i);
+  btn.className = "frame";
+  btn.innerText = `F${{fhrName(i)}}`;
   btn.id = `btn${{i}}`;
   btn.onclick = () => setFrame(i);
   tiles.appendChild(btn);
 }}
 
+function prettyRun(run) {{
+  const parts = run.split("_");
+
+  const ymd = parts[0];
+  const hour = parts[1].replace("z", "");
+
+  const year  = ymd.slice(0,4);
+  const month = ymd.slice(4,6);
+  const day   = ymd.slice(6,8);
+
+  return `Tue ${{year}}-${{month}}-${{day}} ${{hour}}z`;
+}}
+
 runs.forEach(run => {{
   const option = document.createElement("option");
+
   option.value = run;
   option.text = prettyRun(run);
+
   runSelect.appendChild(option);
 }});
 
 Object.entries(domains).forEach(([key, label]) => {{
   const option = document.createElement("option");
+
   option.value = key;
   option.text = label;
+
   domainSelect.appendChild(option);
 }});
+domainSelect.value = selectedDomain;
 
+function changeDomain() {{
+  selectedDomain = domainSelect.value;
+  setFrame(current);
+}}
 function refreshHourAvailability() {{
   for (let i = 0; i <= maxFhr; i++) {{
+
     const btn = document.getElementById(`btn${{i}}`);
+
     if (!btn) continue;
 
     btn.classList.remove("available", "missing");
@@ -1145,16 +1081,31 @@ document.addEventListener("keydown", function(e) {{
 }});
 
 runSelect.value = selectedRun;
-domainSelect.value = selectedDomain;
+domainSelect.value = selectedDomain || "regional";
+selectedDomain = domainSelect.value;
 
 refreshHourAvailability();
-setInterval(refreshHourAvailability, 15000);
 setFrame(0);
 </script>
 </body>
 </html>
 """)
         
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
