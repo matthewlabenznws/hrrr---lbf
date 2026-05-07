@@ -809,6 +809,12 @@ for old_run in all_runs[6:]:
     import shutil
     shutil.rmtree(old_path, ignore_errors=True)
 
+# Always include the current run so the dropdown is never empty
+if cycle_str not in keep_runs:
+    keep_runs = [cycle_str] + keep_runs
+
+keep_runs = keep_runs[:6]
+
 runs_js = ",\n  ".join([f'"{r}"' for r in keep_runs])
 os.makedirs("site", exist_ok=True)
 
@@ -987,7 +993,7 @@ const domains = {{
   "central_plains": "Central Plains"
 }};
 
-let selectedRun = runs.length > 0 ? runs[0] : "";
+let selectedRun = runs.length > 0 ? runs[0] : "{cycle_str}";
 let selectedDomain = "regional";
 let current = 0;
 let playing = false;
