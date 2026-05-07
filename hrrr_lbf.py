@@ -908,7 +908,6 @@ with open(index_path, "w") as f:
   <div class="hint">Use ←/→ arrow keys or forecast-hour buttons to step through frames.</div>
 
 <script>
-const maxFhr = 48;
 
 // Add archived runs here.
 // Newest run should be first.
@@ -924,6 +923,20 @@ const domains = {{
 let selectedDomain = "regional";
 const domainSelect = document.getElementById("domainSelect");
 let selectedRun = runs[0];
+function getMaxFhrForRun(run) {{
+  if (!run) return 18;
+
+  const hourPart = run.split("_")[1];  // example: "18z"
+  const hour = Number(hourPart.replace("z", ""));
+
+  if ([0, 6, 12, 18].includes(hour)) {{
+    return 48;
+  }}
+
+  return 18;
+}}
+
+let maxFhr = getMaxFhrForRun(selectedRun);
 let current = 0;
 let playing = false;
 let timer = null;
@@ -972,12 +985,18 @@ function preloadNeighbors(fhr) {{
 
 function changeRun() {{
   selectedRun = runSelect.value;
-  setFrame(current);
+  current = 0;
+  buildHourButtons();
+  refreshHourAvailability();
+  setFrame(0);
 }}
 
 function latestRun() {{
   selectedRun = runs[0];
   runSelect.value = selectedRun;
+  current = 0;
+  buildHourButtons();
+  refreshHourAvailability();
   setFrame(0);
 }}
 
@@ -996,13 +1015,24 @@ function togglePlay() {{
   }}
 }}
 
-for (let i = 0; i <= maxFhr; i++) {{
-  const btn = document.createElement("button");
-  btn.className = "frame";
-  btn.innerText = `F${{fhrName(i)}}`;
-  btn.id = `btn${{i}}`;
-  btn.onclick = () => setFrame(i);
-  tiles.appendChild(btn);
+function buildHourButtons() {{
+  tiles.innerHTML = "";
+
+  maxFhr = getMaxFhrForRun(selectedRun);
+  slider.max = maxFhr;
+
+  if (current > maxFhr) {{
+    current = maxFhr;
+  }}
+
+  for (let i = 0; i <= maxFhr; i++) {{
+    const btn = document.createElement("button");
+    btn.className = "frame";
+    btn.innerText = fhrName(i);
+    btn.id = `btn${{i}}`;
+    btn.onclick = () => setFrame(i);
+    tiles.appendChild(btn);
+  }}
 }}
 
 function prettyRun(run) {{
@@ -1083,7 +1113,7 @@ document.addEventListener("keydown", function(e) {{
 runSelect.value = selectedRun;
 domainSelect.value = selectedDomain || "regional";
 selectedDomain = domainSelect.value;
-
+buildHourButtons();
 refreshHourAvailability();
 setFrame(0);
 </script>
