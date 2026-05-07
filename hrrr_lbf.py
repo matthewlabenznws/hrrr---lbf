@@ -887,12 +887,17 @@ with open(index_path, "w") as f:
       </div>
       <div class="meta">
   Run:
-  <select id="runSelect" onchange="changeRun()"></select>
+<select id="runSelect" onchange="changeRun()"></select>
 
-  &nbsp;&nbsp;
+&nbsp;&nbsp;
 
-  Domain:
-  <select id="domainSelect" onchange="changeDomain()"></select>
+Product:
+<select id="productSelect" onchange="changeProduct()"></select>
+
+&nbsp;&nbsp;
+
+Domain:
+<select id="domainSelect" onchange="changeDomain()"></select>
 </div>
       </div>
     </div>
@@ -924,6 +929,12 @@ const domains = {{
   "central_plains": "Central Plains"
 }};
 
+const products = {{
+  "refl_uh": "Reflectivity / UH",
+  "hail_swath": "Surface Hail Swath"
+}};
+
+let selectedProduct = "refl_uh";
 let selectedDomain = "regional";
 const domainSelect = document.getElementById("domainSelect");
 let selectedRun = runs[0];
@@ -952,14 +963,24 @@ const validText = document.getElementById("validText");
 const fhrLabel = document.getElementById("fhrLabel");
 const playBtn = document.getElementById("playBtn");
 const runSelect = document.getElementById("runSelect");
+const productSelect = document.getElementById("productSelect");
 
 function fhrName(fhr) {{
   return String(fhr).padStart(3, "0");
 }}
 
-function imgSrc(run, fhr) {{
-  return `runs/${{run}}/${{selectedDomain}}/hrrr_lbf_f${{fhrName(fhr)}}.png?t=${{Date.now()}}`;
-}}
+function imgSrc(run, fhr) {
+
+  let filename;
+
+  if (selectedProduct === "refl_uh") {
+    filename = `hrrr_lbf_f${fhrName(fhr)}.png`;
+  } else if (selectedProduct === "hail_swath") {
+    filename = `hrrr_hail_f${fhrName(fhr)}.png`;
+  }
+
+  return `runs/hrrr/${selectedProduct}/${run}/${selectedDomain}/${filename}?t=${Date.now()}`;
+}
 
 function setFrame(fhr) {{
   current = Math.max(0, Math.min(maxFhr, Number(fhr)));
@@ -1060,7 +1081,6 @@ runs.forEach(run => {{
 
   runSelect.appendChild(option);
 }});
-
 Object.entries(domains).forEach(([key, label]) => {{
   const option = document.createElement("option");
 
@@ -1073,6 +1093,11 @@ domainSelect.value = selectedDomain;
 
 function changeDomain() {{
   selectedDomain = domainSelect.value;
+  setFrame(current);
+}}
+function changeProduct() {{
+  selectedProduct = productSelect.value;
+  refreshHourAvailability();
   setFrame(current);
 }}
 function refreshHourAvailability() {{
@@ -1115,6 +1140,7 @@ document.addEventListener("keydown", function(e) {{
 }});
 
 runSelect.value = selectedRun;
+productSelect.value = selectedProduct;
 domainSelect.value = selectedDomain || "regional";
 selectedDomain = domainSelect.value;
 buildHourButtons();
