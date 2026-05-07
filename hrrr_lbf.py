@@ -743,7 +743,7 @@ for fhr in fhrs:
     for domain_key, cfg in DOMAINS.items():
         plot_domain_from_fields(fields, domain_key, cfg, fhr)
         
-runs_dir = os.path.join("site", "runs")
+runs_dir = os.path.join("site", "runs", "hrrr", "refl_uh")
 os.makedirs(runs_dir, exist_ok=True)
 
 all_runs = sorted(
@@ -756,10 +756,13 @@ all_runs = sorted(
 
 keep_runs = all_runs[:6]
 
-# Delete older runs
+if cycle_str not in keep_runs:
+    keep_runs = [cycle_str] + keep_runs
+
+keep_runs = keep_runs[:6]
+
 for old_run in all_runs[6:]:
     old_path = os.path.join(runs_dir, old_run)
-
     import shutil
     shutil.rmtree(old_path, ignore_errors=True)
 
