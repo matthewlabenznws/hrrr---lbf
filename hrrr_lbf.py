@@ -969,18 +969,17 @@ function fhrName(fhr) {{
   return String(fhr).padStart(3, "0");
 }}
 
-function imgSrc(run, fhr) {
+function imgSrc(run, fhr) {{
+  let filename = "";
 
-  let filename;
+  if (selectedProduct === "refl_uh") {{
+    filename = `hrrr_lbf_f${{fhrName(fhr)}}.png`;
+  }} else if (selectedProduct === "hail_swath") {{
+    filename = `hrrr_hail_f${{fhrName(fhr)}}.png`;
+  }}
 
-  if (selectedProduct === "refl_uh") {
-    filename = `hrrr_lbf_f${fhrName(fhr)}.png`;
-  } else if (selectedProduct === "hail_swath") {
-    filename = `hrrr_hail_f${fhrName(fhr)}.png`;
-  }
-
-  return `runs/hrrr/${selectedProduct}/${run}/${selectedDomain}/${filename}?t=${Date.now()}`;
-}
+  return `runs/hrrr/${{selectedProduct}}/${{run}}/${{selectedDomain}}/${{filename}}?t=${{Date.now()}}`;
+}}
 
 function setFrame(fhr) {{
   current = Math.max(0, Math.min(maxFhr, Number(fhr)));
