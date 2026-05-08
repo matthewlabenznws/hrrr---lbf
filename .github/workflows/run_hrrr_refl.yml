@@ -21,7 +21,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run HRRR Reflectivity/UH
-        working-directory: repo
+        working-directory: .
         run: |
           python hrrr_lbf.py
 
