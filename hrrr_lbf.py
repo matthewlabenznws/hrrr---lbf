@@ -990,7 +990,7 @@ const products = {{
 let selectedModel = "hrrr";
 let selectedProduct = "refl_uh";
 let selectedDomain = "regional";
-let selectedRun = runs.length > 0 ? runs[0] : "";
+let selectedRun = (runsByModel[selectedModel] || []).length > 0 ? runsByModel[selectedModel][0] : "";
 let current = 0;
 let playing = false;
 let timer = null;
@@ -1175,7 +1175,8 @@ function changeDomain() {{
 }}
 
 function latestRun() {{
-  selectedRun = runs.length > 0 ? runs[0] : "";
+  const modelRuns = runsByModel[selectedModel] || [];
+  selectedRun = modelRuns.length > 0 ? modelRuns[0] : "";
   runSelect.value = selectedRun;
   current = 0;
   buildHourButtons();
