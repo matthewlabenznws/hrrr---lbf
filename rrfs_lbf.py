@@ -108,7 +108,7 @@ START_FHR = 1
 if init_dt.hour in [0, 6, 12, 18]:
     MAX_FHR = 60
 else:
-    MAX_FHR = 18
+    MAX_FHR = 1
 
 CYCLE_DELAY_MINUTES = 5
 
