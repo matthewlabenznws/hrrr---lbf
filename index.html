@@ -163,14 +163,20 @@
   <div class="hint">Use ←/→ arrow keys or forecast-hour buttons to step through frames.</div>
 
 <script>
-const runs = [
-  "20260509_13z",
-  "20260509_12z",
-  "20260509_10z",
-  "20260509_09z",
-  "20260509_08z",
-  "20260509_07z"
-];
+const runsByModel = {
+  "hrrr": [
+    "20260509_14z",
+    "20260509_13z",
+    "20260509_12z",
+    "20260509_10z",
+    "20260509_09z",
+    "20260509_08z"
+  ],
+  "rrfs": [
+    "20260509_00z",
+    "20260508_21z"
+  ]
+};
 
 const models = {
   "hrrr": "HRRR",
@@ -347,6 +353,7 @@ function refreshHourAvailability() {
 function changeModel() {
   selectedModel = modelSelect.value;
   current = 0;
+  populateRunDropdown();
   buildHourButtons();
   refreshHourAvailability();
   setFrame(0);
@@ -405,12 +412,21 @@ Object.entries(models).forEach(([key, label]) => {
   modelSelect.appendChild(option);
 });
 
-runs.forEach(run => {
-  const option = document.createElement("option");
-  option.value = run;
-  option.text = prettyRun(run);
-  runSelect.appendChild(option);
-});
+function populateRunDropdown() {
+  runSelect.innerHTML = "";
+
+  const modelRuns = runsByModel[selectedModel] || [];
+
+  modelRuns.forEach(run => {
+    const option = document.createElement("option");
+    option.value = run;
+    option.text = prettyRun(run);
+    runSelect.appendChild(option);
+  });
+
+  selectedRun = modelRuns.length > 0 ? modelRuns[0] : "";
+  runSelect.value = selectedRun;
+}
 
 Object.entries(products).forEach(([key, label]) => {
   const option = document.createElement("option");
@@ -443,7 +459,7 @@ modelSelect.value = selectedModel;
 runSelect.value = selectedRun;
 productSelect.value = selectedProduct;
 domainSelect.value = selectedDomain;
-
+populateRunDropdown();
 buildHourButtons();
 refreshHourAvailability();
 setFrame(0);
