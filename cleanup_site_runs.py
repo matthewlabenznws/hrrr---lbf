@@ -11,10 +11,15 @@ KEEP_COUNTS = {
 
 
 def cleanup_runs(model, product, keep):
-    base_dir = os.path.join("site", "runs", model, product)
+
+    base_dir = os.path.abspath(
+        os.path.join("site", "runs", model, product)
+    )
+
+    print(f"\nCleaning: {base_dir}")
 
     if not os.path.exists(base_dir):
-        print(f"Skipping missing directory: {base_dir}")
+        print("Directory does not exist.")
         return
 
     runs = sorted(
@@ -25,11 +30,15 @@ def cleanup_runs(model, product, keep):
         reverse=True
     )
 
+    print(f"Found {len(runs)} runs")
+
     old_runs = runs[keep:]
 
     for run in old_runs:
         path = os.path.join(base_dir, run)
+
         print(f"Removing old run: {path}")
+
         shutil.rmtree(path, ignore_errors=True)
 
 
