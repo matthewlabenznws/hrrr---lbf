@@ -21,11 +21,18 @@ def get_runs_for_product(model, product, keep=6):
     return runs[:keep]
 
 
-hrrr_runs = get_runs_for_product("hrrr", "refl_uh", keep=6)
-rrfs_runs = get_runs_for_product("rrfs", "refl_uh", keep=6)
+hrrr_refl_runs = get_runs_for_product("hrrr", "refl_uh", keep=4)
+hrrr_hail_runs = get_runs_for_product("hrrr", "hail_swath", keep=4)
+rrfs_refl_runs = get_runs_for_product("rrfs", "refl_uh", keep=4)
+rrfs_hail_runs = get_runs_for_product("rrfs", "hail_swath", keep=4)
 
-hrrr_runs_js = ",\n    ".join([f'"{r}"' for r in hrrr_runs])
-rrfs_runs_js = ",\n    ".join([f'"{r}"' for r in rrfs_runs])
+def js_list(runs):
+    return ",\n      ".join([f'"{r}"' for r in runs])
+
+hrrr_refl_runs_js = js_list(hrrr_refl_runs)
+hrrr_hail_runs_js = js_list(hrrr_hail_runs)
+rrfs_refl_runs_js = js_list(rrfs_refl_runs)
+rrfs_hail_runs_js = js_list(rrfs_hail_runs)
 
 index_path = os.path.join("site", "index.html")
 
@@ -192,36 +199,49 @@ with open(index_path, "w") as f:
   <div class="hint">Use ←/→ arrow keys or forecast-hour buttons to step through frames.</div>
 
 <script>
-const runsByModel = {{
-  "hrrr": [
-    {hrrr_runs_js}
-  ],
-  "rrfs": [
-    {rrfs_runs_js}
-  ]
-}};
+const runsByModelProduct = {
+  "hrrr": {
+    "refl_uh": [
+      {hrrr_refl_runs_js}
+    ],
+    "hail_swath": [
+      {hrrr_hail_runs_js}
+    ]
+  },
+  "rrfs": {
+    "refl_uh": [
+      {rrfs_refl_runs_js}
+    ],
+    "hail_swath": [
+      {rrfs_hail_runs_js}
+    ]
+  }
+};
 
-const models = {{
+const models = {
   "hrrr": "HRRR",
   "rrfs": "RRFS"
-}};
+};
 
-const domains = {{
+const domains = {
   "regional": "Default",
   "lbf": "LBF",
   "central_plains": "Central Plains",
   "spc_severe": "SPC Severe Risk"
-}};
+};
 
-const products = {{
+const products = {
   "refl_uh": "Reflectivity / UH",
   "hail_swath": "Surface Hail Swath"
-}};
+};
 
 let selectedModel = "hrrr";
 let selectedProduct = "refl_uh";
 let selectedDomain = "regional";
-let selectedRun = (runsByModel[selectedModel] || []).length > 0 ? runsByModel[selectedModel][0] : "";
+let selectedRun = (
+  runsByModelProduct[selectedModel]?.[selectedProduct] || []
+)[0] || "";
+
 let current = 0;
 let playing = false;
 let timer = null;
@@ -236,96 +256,80 @@ const runSelect = document.getElementById("runSelect");
 const productSelect = document.getElementById("productSelect");
 const domainSelect = document.getElementById("domainSelect");
 
-function fhrName(fhr) {{
+function fhrName(fhr) {
   return String(fhr).padStart(3, "0");
-}}
+}
 
-function getMaxFhrForRun(model, run) {{
+function getRuns() {
+  return runsByModelProduct[selectedModel]?.[selectedProduct] || [];
+}
+
+function getMaxFhrForRun(model, run) {
   if (!run) return 18;
 
   const hourPart = run.split("_")[1];
   const hour = Number(hourPart.replace("z", ""));
 
-  if (model === "hrrr") {{
+  if (model === "hrrr") {
     if ([0, 6, 12, 18].includes(hour)) return 48;
     return 18;
-  }}
+  }
 
-  if (model === "rrfs") {{
+  if (model === "rrfs") {
     if ([0, 6, 12, 18].includes(hour)) return 60;
     return 18;
-  }}
+  }
 
   return 18;
-}}
+}
 
 let maxFhr = getMaxFhrForRun(selectedModel, selectedRun);
 
-function imgSrc(run, fhr) {{
+function imgSrc(run, fhr) {
   let filename = "";
 
-  if (selectedModel === "hrrr" && selectedProduct === "refl_uh") {{
-    filename = `hrrr_lbf_f${{fhrName(fhr)}}.png`;
-
-  }} else if (selectedModel === "hrrr" && selectedProduct === "hail_swath") {{
-    filename = `hrrr_hail_f${{fhrName(fhr)}}.png`;
-
-  }} else if (selectedModel === "rrfs" && selectedProduct === "refl_uh") {{
-    filename = `rrfs_lbf_f${{fhrName(fhr)}}.png`;
-
-  }} else if (selectedModel === "rrfs" && selectedProduct === "hail_swath") {{
-    filename = `rrfs_hail_f${{fhrName(fhr)}}.png`;
-
-  }} else {{
+  if (selectedModel === "hrrr" && selectedProduct === "refl_uh") {
+    filename = `hrrr_lbf_f${fhrName(fhr)}.png`;
+  } else if (selectedModel === "hrrr" && selectedProduct === "hail_swath") {
+    filename = `hrrr_hail_f${fhrName(fhr)}.png`;
+  } else if (selectedModel === "rrfs" && selectedProduct === "refl_uh") {
+    filename = `rrfs_lbf_f${fhrName(fhr)}.png`;
+  } else if (selectedModel === "rrfs" && selectedProduct === "hail_swath") {
+    filename = `rrfs_hail_f${fhrName(fhr)}.png`;
+  } else {
     return "";
-  }}
+  }
 
-  return `runs/${{selectedModel}}/${{selectedProduct}}/${{run}}/${{selectedDomain}}/${{filename}}?t=${{Date.now()}}`;
-}}
+  return `runs/${selectedModel}/${selectedProduct}/${run}/${selectedDomain}/${filename}?t=${Date.now()}`;
+}
 
-function prettyRun(run) {{
+function prettyRun(run) {
   if (!run) return "No runs yet";
 
   const parts = run.split("_");
   const ymd = parts[0];
   const hour = parts[1].replace("z", "");
 
-  const year = ymd.slice(0, 4);
-  const month = ymd.slice(4, 6);
-  const day = ymd.slice(6, 8);
+  return `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}-${ymd.slice(6, 8)} ${hour}z`;
+}
 
-  return `${{year}}-${{month}}-${{day}} ${{hour}}z`;
-}}
+function populateRunDropdown() {
+  runSelect.innerHTML = "";
 
-function setFrame(fhr) {{
-  current = Math.max(0, Math.min(maxFhr, Number(fhr)));
-  slider.value = current;
+  const runs = getRuns();
 
-  const src = imgSrc(selectedRun, current);
-  if (src) plot.src = src;
+  runs.forEach(run => {
+    const option = document.createElement("option");
+    option.value = run;
+    option.text = prettyRun(run);
+    runSelect.appendChild(option);
+  });
 
-  fhrLabel.innerHTML = fhrName(current);
+  selectedRun = runs[0] || "";
+  runSelect.value = selectedRun;
+}
 
-  document.querySelectorAll("button.frame").forEach(btn => btn.classList.remove("active"));
-  const active = document.getElementById(`btn${{current}}`);
-  if (active) active.classList.add("active");
-
-  preloadNeighbors(current);
-}}
-
-function preloadNeighbors(fhr) {{
-  [fhr + 1, fhr + 2, fhr - 1].forEach(n => {{
-    if (n >= 0 && n <= maxFhr) {{
-      const src = imgSrc(selectedRun, n);
-      if (src) {{
-        const img = new Image();
-        img.src = src;
-      }}
-    }}
-  }});
-}}
-
-function buildHourButtons() {{
+function buildHourButtons() {
   tiles.innerHTML = "";
 
   maxFhr = getMaxFhrForRun(selectedModel, selectedRun);
@@ -333,19 +337,46 @@ function buildHourButtons() {{
 
   if (current > maxFhr) current = maxFhr;
 
-  for (let i = 0; i <= maxFhr; i++) {{
+  for (let i = 0; i <= maxFhr; i++) {
     const btn = document.createElement("button");
     btn.className = "frame missing";
     btn.innerText = fhrName(i);
-    btn.id = `btn${{i}}`;
+    btn.id = `btn${i}`;
     btn.onclick = () => setFrame(i);
     tiles.appendChild(btn);
-  }}
-}}
+  }
+}
 
-function refreshHourAvailability() {{
-  for (let i = 0; i <= maxFhr; i++) {{
-    const btn = document.getElementById(`btn${{i}}`);
+function setFrame(fhr) {
+  current = Math.max(0, Math.min(maxFhr, Number(fhr)));
+  slider.value = current;
+  fhrLabel.innerHTML = fhrName(current);
+
+  const src = imgSrc(selectedRun, current);
+  if (src) plot.src = src;
+
+  document.querySelectorAll("button.frame").forEach(btn => btn.classList.remove("active"));
+  const active = document.getElementById(`btn${current}`);
+  if (active) active.classList.add("active");
+
+  preloadNeighbors(current);
+}
+
+function preloadNeighbors(fhr) {
+  [fhr + 1, fhr + 2, fhr - 1].forEach(n => {
+    if (n >= 0 && n <= maxFhr) {
+      const src = imgSrc(selectedRun, n);
+      if (src) {
+        const img = new Image();
+        img.src = src;
+      }
+    }
+  });
+}
+
+function refreshHourAvailability() {
+  for (let i = 0; i <= maxFhr; i++) {
+    const btn = document.getElementById(`btn${i}`);
     if (!btn) continue;
 
     btn.classList.remove("available", "missing");
@@ -356,125 +387,110 @@ function refreshHourAvailability() {{
 
     const testImg = new Image();
 
-    testImg.onload = () => {{
+    testImg.onload = () => {
       btn.classList.remove("missing");
       btn.classList.add("available");
-    }};
+    };
 
-    testImg.onerror = () => {{
+    testImg.onerror = () => {
       btn.classList.remove("available");
       btn.classList.add("missing");
-    }};
+    };
 
     testImg.src = src;
-  }}
-}}
+  }
+}
 
-function populateRunDropdown() {{
-  runSelect.innerHTML = "";
-
-  const modelRuns = runsByModel[selectedModel] || [];
-
-  modelRuns.forEach(run => {{
-    const option = document.createElement("option");
-    option.value = run;
-    option.text = prettyRun(run);
-    runSelect.appendChild(option);
-  }});
-
-  selectedRun = modelRuns.length > 0 ? modelRuns[0] : "";
-  runSelect.value = selectedRun;
-}}
-
-function changeModel() {{
+function changeModel() {
   selectedModel = modelSelect.value;
   current = 0;
   populateRunDropdown();
   buildHourButtons();
   refreshHourAvailability();
   setFrame(0);
-}}
+}
 
-function changeRun() {{
+function changeProduct() {
+  selectedProduct = productSelect.value;
+  current = 0;
+  populateRunDropdown();
+  buildHourButtons();
+  refreshHourAvailability();
+  setFrame(0);
+}
+
+function changeRun() {
   selectedRun = runSelect.value;
   current = 0;
   buildHourButtons();
   refreshHourAvailability();
   setFrame(0);
-}}
+}
 
-function changeProduct() {{
-  selectedProduct = productSelect.value;
-  current = 0;
-  buildHourButtons();
-  refreshHourAvailability();
-  setFrame(0);
-}}
-
-function changeDomain() {{
+function changeDomain() {
   selectedDomain = domainSelect.value;
   refreshHourAvailability();
   setFrame(current);
-}}
+}
 
-function latestRun() {{
-  const modelRuns = runsByModel[selectedModel] || [];
-  selectedRun = modelRuns.length > 0 ? modelRuns[0] : "";
+function latestRun() {
+  const runs = getRuns();
+  selectedRun = runs[0] || "";
   runSelect.value = selectedRun;
   current = 0;
   buildHourButtons();
   refreshHourAvailability();
   setFrame(0);
-}}
+}
 
-function togglePlay() {{
+function togglePlay() {
   playing = !playing;
 
-  if (playing) {{
+  if (playing) {
     playBtn.innerHTML = "⏸ Pause";
-    timer = setInterval(() => {{
+    timer = setInterval(() => {
       current = current >= maxFhr ? 0 : current + 1;
       setFrame(current);
-    }}, 650);
-  }} else {{
+    }, 650);
+  } else {
     playBtn.innerHTML = "▶ Play";
     clearInterval(timer);
-  }}
-}}
+  }
+}
 
-Object.entries(models).forEach(([key, label]) => {{
+Object.entries(models).forEach(([key, label]) => {
   const option = document.createElement("option");
   option.value = key;
   option.text = label;
   modelSelect.appendChild(option);
-}});
+});
 
-Object.entries(products).forEach(([key, label]) => {{
+Object.entries(products).forEach(([key, label]) => {
   const option = document.createElement("option");
   option.value = key;
   option.text = label;
   productSelect.appendChild(option);
-}});
+});
 
-Object.entries(domains).forEach(([key, label]) => {{
+Object.entries(domains).forEach(([key, label]) => {
   const option = document.createElement("option");
   option.value = key;
   option.text = label;
   domainSelect.appendChild(option);
-}});
+});
 
 slider.oninput = () => setFrame(slider.value);
 
-document.addEventListener("keydown", function(e) {{
-  if (e.key === "ArrowRight") {{
+document.addEventListener("keydown", function(e) {
+  if (e.key === "ArrowRight") {
     setFrame(current + 1);
-  }} else if (e.key === "ArrowLeft") {{
+  } else if (e.key === "ArrowLeft") {
     setFrame(current - 1);
-  }} else if (e.key === " ") {{
+  } else if (e.key === " ") {
     e.preventDefault();
     togglePlay();
-  }}
-}});
+  }
+});
 
 modelSelect.value = selectedModel;
 productSelect.value = selectedProduct;
