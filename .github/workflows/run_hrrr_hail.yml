@@ -38,6 +38,7 @@ jobs:
       - name: Run HRRR Hail Swath
         run: |
          python hrrr_hail_swath.py
+         python cleanup_site_runs.py
          python build_index.py
          
       - name: Deploy site
