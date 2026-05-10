@@ -3,10 +3,10 @@ import shutil
 
 
 KEEP_COUNTS = {
-    ("hrrr", "refl_uh"): 8,
-    ("hrrr", "hail_swath"): 8,
-    ("rrfs", "refl_uh"): 8,
-    ("rrfs", "hail_swath"): 8,
+    ("hrrr", "refl_uh"): 4,
+    ("hrrr", "hail_swath"): 4,
+    ("rrfs", "refl_uh"): 4,
+    ("rrfs", "hail_swath"): 4,
 }
 
 
