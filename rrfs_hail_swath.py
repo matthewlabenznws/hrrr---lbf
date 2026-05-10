@@ -212,7 +212,7 @@ VALID_RRFS_CYCLES = list(range(24))
 
 
 START_FHR = 1
-CYCLE_DELAY_MINUTES = 60
+CYCLE_DELAY_MINUTES = 45
 
 
 # ============================================================
