@@ -42,5 +42,32 @@ def cleanup_runs(model, product, keep):
         shutil.rmtree(path, ignore_errors=True)
 
 
+# ============================================================
+# REMOVE OLD LEGACY RUN FOLDERS
+# ============================================================
+
+legacy_base = os.path.join("site", "runs")
+
+if os.path.exists(legacy_base):
+
+    for name in os.listdir(legacy_base):
+
+        path = os.path.join(legacy_base, name)
+
+        if (
+            os.path.isdir(path)
+            and name.startswith("20")
+            and "_z" in name
+        ):
+
+            print(f"Removing legacy run folder: {path}")
+
+            shutil.rmtree(path, ignore_errors=True)
+
+
+# ============================================================
+# CLEAN MODERN RUN STRUCTURE
+# ============================================================
+
 for (model, product), keep in KEEP_COUNTS.items():
     cleanup_runs(model, product, keep)
