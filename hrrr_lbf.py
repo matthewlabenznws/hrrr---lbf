@@ -809,23 +809,22 @@ def plot_domain_from_fields(fields, domain_key, cfg, fhr):
         # ============================================================
 # NOAA/NWS LOGO
 # ============================================================
-
         if os.path.exists(LOGO_PATH):
-
            logo = mpimg.imread(LOGO_PATH)
 
-           ax.imshow(
-            logo,
-            extent=[0.82, 0.985, 0.84, 0.995],
-            transform=ax.transAxes,
-            zorder=50,
-            aspect="auto"
-            )
+           logo_ax = ax.inset_axes(
+           [0.82, 0.84, 0.165, 0.155],
+           transform=ax.transAxes,
+           zorder=50
+           )
+
+           logo_ax.imshow(logo)
+           logo_ax.axis("off")
 
         ax.text(
-       0.902,
-       0.835,
-       "NWS North Platte, NE",
+        0.902,
+        0.835,
+        "NWS North Platte, NE",
         transform=ax.transAxes,
        ha="center",
        va="top",
