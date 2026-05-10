@@ -6,7 +6,8 @@ import os
 
 os.makedirs("site", exist_ok=True)
 
-def get_runs_for_product(model, product, keep=6):
+
+def get_runs_for_product(model, product, keep=4):
     runs_dir = os.path.join("site", "runs", model, product)
     os.makedirs(runs_dir, exist_ok=True)
 
@@ -21,63 +22,58 @@ def get_runs_for_product(model, product, keep=6):
     return runs[:keep]
 
 
-hrrr_refl_runs = get_runs_for_product("hrrr", "refl_uh", keep=4)
-hrrr_hail_runs = get_runs_for_product("hrrr", "hail_swath", keep=4)
-rrfs_refl_runs = get_runs_for_product("rrfs", "refl_uh", keep=4)
-rrfs_hail_runs = get_runs_for_product("rrfs", "hail_swath", keep=4)
-
 def js_list(runs):
     return ",\n      ".join([f'"{r}"' for r in runs])
 
-hrrr_refl_runs_js = js_list(hrrr_refl_runs)
-hrrr_hail_runs_js = js_list(hrrr_hail_runs)
-rrfs_refl_runs_js = js_list(rrfs_refl_runs)
-rrfs_hail_runs_js = js_list(rrfs_hail_runs)
+
+hrrr_refl_runs_js = js_list(get_runs_for_product("hrrr", "refl_uh", keep=4))
+hrrr_hail_runs_js = js_list(get_runs_for_product("hrrr", "hail_swath", keep=4))
+rrfs_refl_runs_js = js_list(get_runs_for_product("rrfs", "refl_uh", keep=4))
+rrfs_hail_runs_js = js_list(get_runs_for_product("rrfs", "hail_swath", keep=4))
 
 index_path = os.path.join("site", "index.html")
 
-with open(index_path, "w") as f:
-    f.write(f"""
+html = """
 <!DOCTYPE html>
 <html>
 <head>
   <title>NWS LBF Model Viewer</title>
   <style>
-    body {{
+    body {
       margin: 0;
       background: #111;
       color: white;
       font-family: Arial, Helvetica, sans-serif;
       text-align: center;
-    }}
+    }
 
-    .topbar {{
+    .topbar {
       background: linear-gradient(#2a2a2a, #151515);
       border-bottom: 1px solid #444;
       padding: 10px 14px;
-    }}
+    }
 
-    .title-row {{
+    .title-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 12px;
       flex-wrap: wrap;
-    }}
+    }
 
-    .main-title {{
+    .main-title {
       font-size: 18px;
       font-weight: bold;
       text-align: left;
-    }}
+    }
 
-    .meta {{
+    .meta {
       font-size: 13px;
       color: #bbb;
       text-align: right;
-    }}
+    }
 
-    .controls {{
+    .controls {
       background: #1b1b1b;
       border-bottom: 1px solid #444;
       padding: 8px 12px;
@@ -85,9 +81,9 @@ with open(index_path, "w") as f:
       grid-template-columns: auto auto 1fr auto;
       gap: 10px;
       align-items: center;
-    }}
+    }
 
-    select, button {{
+    select, button {
       background: #2c2c2c;
       color: white;
       border: 1px solid #666;
@@ -95,18 +91,18 @@ with open(index_path, "w") as f:
       border-radius: 3px;
       cursor: pointer;
       font-weight: bold;
-    }}
+    }
 
-    button:hover, select:hover {{
+    button:hover, select:hover {
       background: #3a3a3a;
-    }}
+    }
 
-    input[type="range"] {{
+    input[type="range"] {
       width: 100%;
       accent-color: #2b7cff;
-    }}
+    }
 
-    .tiles {{
+    .tiles {
       background: #0f0f0f;
       border-bottom: 1px solid #444;
       padding: 7px 8px;
@@ -114,43 +110,43 @@ with open(index_path, "w") as f:
       flex-wrap: wrap;
       justify-content: center;
       gap: 3px;
-    }}
+    }
 
-    .tiles button {{
+    .tiles button {
       font-size: 12px;
       min-width: 44px;
       padding: 5px 8px;
-    }}
+    }
 
     .tiles button.active,
-    .tiles button.available {{
+    .tiles button.available {
       background: #2b7cff;
       color: white;
       border-color: #9ec0ff;
-    }}
+    }
 
-    .tiles button.missing {{
+    .tiles button.missing {
       background: #111;
       color: #aaa;
       border-color: #555;
-    }}
+    }
 
-    .image-wrap {{
+    .image-wrap {
       padding: 10px 0 18px 0;
-    }}
+    }
 
-    #plot {{
+    #plot {
       max-width: 98vw;
       max-height: calc(100vh - 190px);
       border: 1px solid #333;
       background: #000;
-    }}
+    }
 
-    .hint {{
+    .hint {
       color: #aaa;
       font-size: 12px;
       padding-bottom: 10px;
-    }}
+    }
   </style>
 </head>
 
@@ -202,18 +198,18 @@ with open(index_path, "w") as f:
 const runsByModelProduct = {
   "hrrr": {
     "refl_uh": [
-      {hrrr_refl_runs_js}
+      __HRRR_REFL_RUNS__
     ],
     "hail_swath": [
-      {hrrr_hail_runs_js}
+      __HRRR_HAIL_RUNS__
     ]
   },
   "rrfs": {
     "refl_uh": [
-      {rrfs_refl_runs_js}
+      __RRFS_REFL_RUNS__
     ],
     "hail_swath": [
-      {rrfs_hail_runs_js}
+      __RRFS_HAIL_RUNS__
     ]
   }
 };
@@ -238,10 +234,7 @@ const products = {
 let selectedModel = "hrrr";
 let selectedProduct = "refl_uh";
 let selectedDomain = "regional";
-let selectedRun = (
-  runsByModelProduct[selectedModel]?.[selectedProduct] || []
-)[0] || "";
-
+let selectedRun = "";
 let current = 0;
 let playing = false;
 let timer = null;
@@ -283,24 +276,32 @@ function getMaxFhrForRun(model, run) {
   return 18;
 }
 
-let maxFhr = getMaxFhrForRun(selectedModel, selectedRun);
+let maxFhr = 18;
 
 function imgSrc(run, fhr) {
   let filename = "";
 
+  if (!run) return "";
+
   if (selectedModel === "hrrr" && selectedProduct === "refl_uh") {
-    filename = `hrrr_lbf_f${fhrName(fhr)}.png`;
+    filename = "hrrr_lbf_f" + fhrName(fhr) + ".png";
   } else if (selectedModel === "hrrr" && selectedProduct === "hail_swath") {
-    filename = `hrrr_hail_f${fhrName(fhr)}.png`;
+    filename = "hrrr_hail_f" + fhrName(fhr) + ".png";
   } else if (selectedModel === "rrfs" && selectedProduct === "refl_uh") {
-    filename = `rrfs_lbf_f${fhrName(fhr)}.png`;
+    filename = "rrfs_lbf_f" + fhrName(fhr) + ".png";
   } else if (selectedModel === "rrfs" && selectedProduct === "hail_swath") {
-    filename = `rrfs_hail_f${fhrName(fhr)}.png`;
+    filename = "rrfs_hail_f" + fhrName(fhr) + ".png";
   } else {
     return "";
   }
 
-  return `runs/${selectedModel}/${selectedProduct}/${run}/${selectedDomain}/${filename}?t=${Date.now()}`;
+  return "runs/" +
+    selectedModel + "/" +
+    selectedProduct + "/" +
+    run + "/" +
+    selectedDomain + "/" +
+    filename +
+    "?t=" + Date.now();
 }
 
 function prettyRun(run) {
@@ -310,7 +311,12 @@ function prettyRun(run) {
   const ymd = parts[0];
   const hour = parts[1].replace("z", "");
 
-  return `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}-${ymd.slice(6, 8)} ${hour}z`;
+  return (
+    ymd.slice(0, 4) + "-" +
+    ymd.slice(4, 6) + "-" +
+    ymd.slice(6, 8) + " " +
+    hour + "z"
+  );
 }
 
 function populateRunDropdown() {
@@ -318,7 +324,7 @@ function populateRunDropdown() {
 
   const runs = getRuns();
 
-  runs.forEach(run => {
+  runs.forEach(function(run) {
     const option = document.createElement("option");
     option.value = run;
     option.text = prettyRun(run);
@@ -341,8 +347,10 @@ function buildHourButtons() {
     const btn = document.createElement("button");
     btn.className = "frame missing";
     btn.innerText = fhrName(i);
-    btn.id = `btn${i}`;
-    btn.onclick = () => setFrame(i);
+    btn.id = "btn" + i;
+    btn.onclick = function() {
+      setFrame(i);
+    };
     tiles.appendChild(btn);
   }
 }
@@ -355,15 +363,18 @@ function setFrame(fhr) {
   const src = imgSrc(selectedRun, current);
   if (src) plot.src = src;
 
-  document.querySelectorAll("button.frame").forEach(btn => btn.classList.remove("active"));
-  const active = document.getElementById(`btn${current}`);
+  document.querySelectorAll("button.frame").forEach(function(btn) {
+    btn.classList.remove("active");
+  });
+
+  const active = document.getElementById("btn" + current);
   if (active) active.classList.add("active");
 
   preloadNeighbors(current);
 }
 
 function preloadNeighbors(fhr) {
-  [fhr + 1, fhr + 2, fhr - 1].forEach(n => {
+  [fhr + 1, fhr + 2, fhr - 1].forEach(function(n) {
     if (n >= 0 && n <= maxFhr) {
       const src = imgSrc(selectedRun, n);
       if (src) {
@@ -376,7 +387,7 @@ function preloadNeighbors(fhr) {
 
 function refreshHourAvailability() {
   for (let i = 0; i <= maxFhr; i++) {
-    const btn = document.getElementById(`btn${i}`);
+    const btn = document.getElementById("btn" + i);
     if (!btn) continue;
 
     btn.classList.remove("available", "missing");
@@ -387,12 +398,12 @@ function refreshHourAvailability() {
 
     const testImg = new Image();
 
-    testImg.onload = () => {
+    testImg.onload = function() {
       btn.classList.remove("missing");
       btn.classList.add("available");
     };
 
-    testImg.onerror = () => {
+    testImg.onerror = function() {
       btn.classList.remove("available");
       btn.classList.add("missing");
     };
@@ -448,7 +459,7 @@ function togglePlay() {
 
   if (playing) {
     playBtn.innerHTML = "⏸ Pause";
-    timer = setInterval(() => {
+    timer = setInterval(function() {
       current = current >= maxFhr ? 0 : current + 1;
       setFrame(current);
     }, 650);
@@ -458,28 +469,36 @@ function togglePlay() {
   }
 }
 
-Object.entries(models).forEach(([key, label]) => {
+Object.entries(models).forEach(function(entry) {
+  const key = entry[0];
+  const label = entry[1];
   const option = document.createElement("option");
   option.value = key;
   option.text = label;
   modelSelect.appendChild(option);
 });
 
-Object.entries(products).forEach(([key, label]) => {
+Object.entries(products).forEach(function(entry) {
+  const key = entry[0];
+  const label = entry[1];
   const option = document.createElement("option");
   option.value = key;
   option.text = label;
   productSelect.appendChild(option);
 });
 
-Object.entries(domains).forEach(([key, label]) => {
+Object.entries(domains).forEach(function(entry) {
+  const key = entry[0];
+  const label = entry[1];
   const option = document.createElement("option");
   option.value = key;
   option.text = label;
   domainSelect.appendChild(option);
 });
 
-slider.oninput = () => setFrame(slider.value);
+slider.oninput = function() {
+  setFrame(slider.value);
+};
 
 document.addEventListener("keydown", function(e) {
   if (e.key === "ArrowRight") {
@@ -503,6 +522,14 @@ setFrame(0);
 </script>
 </body>
 </html>
-""")
+"""
+
+html = html.replace("__HRRR_REFL_RUNS__", hrrr_refl_runs_js)
+html = html.replace("__HRRR_HAIL_RUNS__", hrrr_hail_runs_js)
+html = html.replace("__RRFS_REFL_RUNS__", rrfs_refl_runs_js)
+html = html.replace("__RRFS_HAIL_RUNS__", rrfs_hail_runs_js)
+
+with open(index_path, "w") as f:
+    f.write(html)
 
 print("Wrote:", index_path)
