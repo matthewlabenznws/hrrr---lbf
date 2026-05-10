@@ -209,7 +209,7 @@ const models = {{
 const domains = {{
   "regional": "Default",
   "lbf": "LBF",
-  "central_plains": "Central Plains"
+  "central_plains": "Central Plains",
   "spc_severe": "SPC Severe Risk"
 }};
 
