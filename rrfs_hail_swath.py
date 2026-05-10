@@ -781,23 +781,30 @@ def plot_hail_domain(fields, domain_key, cfg, fhr):
     cbar.ax.tick_params(axis="x", which="both", length=0)
 
     if os.path.exists(LOGO_PATH):
-        logo = mpimg.imread(LOGO_PATH)
-        logo_ax = fig.add_axes(cfg["logo_ax"], zorder=30)
-        logo_ax.imshow(logo)
-        logo_ax.axis("off")
+       logo = mpimg.imread(LOGO_PATH)
 
-    fig.text(
-        cfg["office_text_xy"][0],
-        cfg["office_text_xy"][1],
+       logo_ax = ax.inset_axes(
+       [0.82, 0.84, 0.165, 0.155],
+       transform=ax.transAxes,
+       zorder=50
+           )
+
+       logo_ax.imshow(logo)
+       logo_ax.axis("off")
+
+    ax.text(
+        0.902,
+        0.835,
         "NWS North Platte, NE",
-        ha="center",
-        va="top",
-        fontsize=10,
-        fontweight="bold",
-        color="black",
-        zorder=31,
-        path_effects=[pe.withStroke(linewidth=2.5, foreground="white")]
-    )
+        transform=ax.transAxes,
+       ha="center",
+       va="top",
+       fontsize=10,
+       fontweight="bold",
+       color="black",
+       zorder=51,
+       path_effects=[pe.withStroke(linewidth=2.5, foreground="white")]
+       )
 
     ax.text(
     0.01,
