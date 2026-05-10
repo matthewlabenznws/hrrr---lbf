@@ -1,6 +1,7 @@
 # ============================================================
 # RRFS | NWS LBF Viewer Product
-# Refl + UH + Sim IR + Theta Cold Pools + 4–6 km SR Winds
+# Reflectivity + UH + Sim IR + Theta Cold Pools + 4–6 km SR Winds
+# Site-ready version with dynamic SPC severe domain
 # ============================================================
 
 import os
@@ -47,12 +48,7 @@ if os.path.exists(zip_path):
 
 DATA_DIR = os.path.join(BASE_DIR, "rrfs_subsets")
 
-OUTDIR_BASE = os.path.join(
-    "site",
-    "runs",
-    "rrfs",
-    "refl_uh"
-)
+OUTDIR_BASE = os.path.join("site", "runs", "rrfs", "refl_uh")
 
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(OUTDIR_BASE, exist_ok=True)
@@ -69,33 +65,131 @@ DOMAINS = {
         "title_size": 14,
         "subtitle_size": 11,
         "barb_skip": 11,
-        "logo_ax": [0.78, 0.70, 0.10, 0.10],
-        "office_text_xy": [0.83, 0.71],
-        "credit_xy": [0.13, 0.25],
     },
-
     "regional": {
         "label": "Default",
         "extent": [-107.5, -93.0, 38.5, 44.2],
         "title_size": 13,
         "subtitle_size": 11,
         "barb_skip": 20,
-        "logo_ax": [0.78, 0.63, 0.10, 0.10],
-        "office_text_xy": [0.83, 0.64],
-        "credit_xy": [0.13, 0.31],
     },
-
     "central_plains": {
         "label": "Central Plains",
         "extent": [-107.5, -91.0, 34.5, 45.2],
         "title_size": 13,
         "subtitle_size": 11,
         "barb_skip": 24,
-        "logo_ax": [0.78, 0.77, 0.10, 0.10],
-        "office_text_xy": [0.83, 0.78],
-        "credit_xy": [0.13, 0.175],
     },
 }
+
+
+# ============================================================
+# DYNAMIC SPC SEVERE DOMAIN
+# ============================================================
+
+SPC_DAY1_CAT_URL = (
+    "https://mapservices.weather.noaa.gov/vector/rest/services/outlooks/"
+    "SPC_wx_outlks/MapServer/1/query"
+)
+
+SPC_RISK_ORDER = {
+    "TSTM": 1,
+    "MRGL": 2,
+    "SLGT": 3,
+    "ENH": 4,
+    "MDT": 5,
+    "HIGH": 6,
+}
+
+MIN_SPC_RISK = "SLGT"
+SEVERE_DOMAIN_WIDTH = 14.0
+SEVERE_DOMAIN_HEIGHT = 10.0
+
+
+def fetch_spc_day1_geojson():
+    params = {
+        "where": "1=1",
+        "outFields": "*",
+        "f": "geojson",
+        "returnGeometry": "true",
+        "outSR": "4326",
+    }
+
+    r = requests.get(SPC_DAY1_CAT_URL, params=params, timeout=30)
+    r.raise_for_status()
+    data = r.json()
+
+    if "features" not in data or len(data["features"]) == 0:
+        raise RuntimeError("SPC query returned no features.")
+
+    return gpd.GeoDataFrame.from_features(data["features"], crs="EPSG:4326")
+
+
+def add_spc_severe_domain():
+    try:
+        gdf = fetch_spc_day1_geojson().to_crs(epsg=4326)
+
+        risk_col = None
+        for col in gdf.columns:
+            vals = gdf[col].astype(str).str.upper()
+            if vals.isin(SPC_RISK_ORDER.keys()).any():
+                risk_col = col
+                break
+
+        if risk_col is None:
+            print("SPC severe domain skipped: could not find risk category column.")
+            print("SPC columns:", list(gdf.columns))
+            return
+
+        gdf["risk"] = gdf[risk_col].astype(str).str.upper()
+        gdf["risk_rank"] = gdf["risk"].map(SPC_RISK_ORDER)
+
+        severe = gdf[gdf["risk_rank"] >= SPC_RISK_ORDER[MIN_SPC_RISK]].copy()
+
+        if severe.empty:
+            print("SPC severe domain skipped: no SLGT+ risk found.")
+            return
+
+        highest_rank = severe["risk_rank"].max()
+        highest = severe[severe["risk_rank"] == highest_rank].copy()
+
+        highest_proj = highest.to_crs(epsg=5070)
+        highest["_area"] = highest_proj.geometry.area.values
+        main_poly = highest.loc[highest["_area"].idxmax()]
+
+        highest_label = main_poly["risk"]
+
+        main_gdf = gpd.GeoDataFrame([main_poly], geometry="geometry", crs="EPSG:4326")
+        centroid_proj = main_gdf.to_crs(epsg=5070).geometry.centroid
+        centroid_ll = gpd.GeoSeries(centroid_proj, crs="EPSG:5070").to_crs(epsg=4326).iloc[0]
+
+        center_lon = centroid_ll.x
+        center_lat = centroid_ll.y
+
+        extent = [
+            center_lon - SEVERE_DOMAIN_WIDTH / 2,
+            center_lon + SEVERE_DOMAIN_WIDTH / 2,
+            center_lat - SEVERE_DOMAIN_HEIGHT / 2,
+            center_lat + SEVERE_DOMAIN_HEIGHT / 2,
+        ]
+
+        DOMAINS["spc_severe"] = {
+            "label": f"SPC {highest_label} Risk",
+            "extent": extent,
+            "title_size": 13,
+            "subtitle_size": 11,
+            "barb_skip": 22,
+        }
+
+        print(f"Added SPC severe domain: {highest_label}")
+        print(f"SPC severe center: lon={center_lon:.2f}, lat={center_lat:.2f}")
+        print(f"SPC severe extent: {extent}")
+
+    except Exception as e:
+        print(f"SPC severe domain skipped due to error: {e}")
+
+
+add_spc_severe_domain()
 
 
 # ============================================================
@@ -105,9 +199,7 @@ DOMAINS = {
 VALID_RRFS_CYCLES = [0, 3, 6, 9, 12, 15, 18, 21]
 
 START_FHR = 1
-MAX_FHR = 60
-
-CYCLE_DELAY_MINUTES = 5
+CYCLE_DELAY_MINUTES = 75
 
 MANUAL_STORM_MOTION_FROM_DEG = 250
 MANUAL_STORM_MOTION_SPEED_KT = 35
@@ -357,15 +449,14 @@ def find_idx_match(parsed, all_terms, label):
 
     for item in parsed:
         line_lower = item["line"].lower()
-
         if all(term in line_lower for term in all_terms_lower):
             matches.append(item)
 
     if not matches:
-        sample = "\n".join([p["line"] for p in parsed[:80]])
+        sample = "\n".join([p["line"] for p in parsed[:100]])
         raise RuntimeError(
             f"Could not find {label} in IDX using terms {all_terms}.\n"
-            f"First 80 IDX lines:\n{sample}"
+            f"First 100 IDX lines:\n{sample}"
         )
 
     match = matches[0]
@@ -432,7 +523,6 @@ def rrfs_idx_field(init_dt, fhr, term_sets, label, product="2dfld"):
             match = find_idx_match(parsed, terms, label)
 
             safe_label = re.sub(r"[^A-Za-z0-9]+", "_", label).strip("_")
-
             outname = (
                 f"rrfs_{product}_{init_dt:%Y%m%d_%H}z_f{fhr:03d}_"
                 f"{safe_label}_{match['msg_num']}.grib2"
@@ -476,7 +566,6 @@ def subset_2d(lat, lon, *fields):
 
     iy0 = max(iy.min() - 2, 0)
     iy1 = min(iy.max() + 3, lat.shape[0])
-
     ix0 = max(ix.min() - 2, 0)
     ix1 = min(ix.max() + 3, lon.shape[1])
 
@@ -521,12 +610,12 @@ def interp_to_target_grid(src_lat, src_lon, src_field, tgt_lat, tgt_lon):
 # ============================================================
 
 init_dt = find_latest_available_rrfs_cycle()
+cycle_str = init_dt.strftime("%Y%m%d_%Hz")
+
 if init_dt.hour in [0, 6, 12, 18]:
     MAX_FHR = 60
 else:
     MAX_FHR = 18
-
-cycle_str = init_dt.strftime("%Y%m%d_%Hz")
 
 OUTDIR = os.path.join(OUTDIR_BASE, cycle_str)
 os.makedirs(OUTDIR, exist_ok=True)
@@ -536,6 +625,7 @@ fhrs = range(START_FHR, MAX_FHR + 1)
 print("Using RRFS init:", init_dt.strftime("%Y-%m-%d %HZ"))
 print("Forecast hours:", list(fhrs))
 print("Output directory:", OUTDIR)
+print("Domains:", list(DOMAINS.keys()))
 
 lbf_geom = get_lbf_cwa_geom(LBF_CWA_SHP)
 
@@ -552,11 +642,7 @@ def load_rrfs_fields_once(fhr):
     refl_da = rrfs_idx_field(
         init_dt,
         fhr,
-        [
-            ["REFD", "1000 m"],
-            ["REFC"],
-            ["REFD"],
-        ],
+        [["REFD", "1000 m"], ["REFC"], ["REFD"]],
         "reflectivity",
         product="2dfld"
     )
@@ -570,10 +656,7 @@ def load_rrfs_fields_once(fhr):
         uh25_da = rrfs_idx_field(
             init_dt,
             fhr,
-            [
-                ["MXUPHL", "5000-2000"],
-                ["MXUPHL", "5000 - 2000"],
-            ],
+            [["MXUPHL", "5000-2000"], ["MXUPHL", "5000 - 2000"]],
             "2-5km UH",
             product="2dfld"
         )
@@ -587,10 +670,7 @@ def load_rrfs_fields_once(fhr):
         uh03_da = rrfs_idx_field(
             init_dt,
             fhr,
-            [
-                ["MXUPHL", "3000-0"],
-                ["MXUPHL", "3000 - 0"],
-            ],
+            [["MXUPHL", "3000-0"], ["MXUPHL", "3000 - 0"]],
             "0-3km UH",
             product="2dfld"
         )
@@ -604,14 +684,7 @@ def load_rrfs_fields_once(fhr):
         ir_da = rrfs_idx_field(
             init_dt,
             fhr,
-            [
-                ["SBT123"],
-                ["SBT124"],
-                ["SBT", "123"],
-                ["SBT", "124"],
-                ["brightness"],
-                ["satellite"],
-            ],
+            [["SBT123"], ["SBT124"], ["SBT", "123"], ["SBT", "124"], ["brightness"], ["satellite"]],
             "simulated IR",
             product="2dfld"
         )
@@ -625,10 +698,7 @@ def load_rrfs_fields_once(fhr):
     t2_da = rrfs_idx_field(
         init_dt,
         fhr,
-        [
-            ["TMP", "2 m above ground"],
-            ["TMP", "2 m"],
-        ],
+        [["TMP", "2 m above ground"], ["TMP", "2 m"]],
         "2m temperature",
         product="2dfld"
     )
@@ -636,9 +706,7 @@ def load_rrfs_fields_once(fhr):
     ps_da = rrfs_idx_field(
         init_dt,
         fhr,
-        [
-            ["PRES", "surface"],
-        ],
+        [["PRES", "surface"]],
         "surface pressure",
         product="2dfld"
     )
@@ -659,29 +727,67 @@ def load_rrfs_fields_once(fhr):
 
     pr_lat, pr_lon = get_lat_lon(u700_da)
 
-    u700 = ensure_2d_field(u700_da, "700mb U wind")
-    v700 = ensure_2d_field(v700_da, "700mb V wind")
-    u600 = ensure_2d_field(u600_da, "600mb U wind")
-    v600 = ensure_2d_field(v600_da, "600mb V wind")
-    u500 = ensure_2d_field(u500_da, "500mb U wind")
-    v500 = ensure_2d_field(v500_da, "500mb V wind")
-
-    u46_pr = np.nanmean(np.stack([u700, u600, u500]), axis=0)
-    v46_pr = np.nanmean(np.stack([v700, v600, v500]), axis=0)
-
-    storm_u_scalar, storm_v_scalar = wind_from_dir_speed_to_uv(
-        MANUAL_STORM_MOTION_FROM_DEG,
-        kt_to_ms(MANUAL_STORM_MOTION_SPEED_KT)
+    u46_pr = np.nanmean(
+        np.stack([
+            ensure_2d_field(u700_da, "700mb U wind"),
+            ensure_2d_field(u600_da, "600mb U wind"),
+            ensure_2d_field(u500_da, "500mb U wind"),
+        ]),
+        axis=0
     )
 
-    storm_u_native = np.full_like(refl, storm_u_scalar)
-    storm_v_native = np.full_like(refl, storm_v_scalar)
+    v46_pr = np.nanmean(
+        np.stack([
+            ensure_2d_field(v700_da, "700mb V wind"),
+            ensure_2d_field(v600_da, "600mb V wind"),
+            ensure_2d_field(v500_da, "500mb V wind"),
+        ]),
+        axis=0
+    )
 
     u46_native = interp_to_target_grid(pr_lat, pr_lon, u46_pr, lat, lon)
     v46_native = interp_to_target_grid(pr_lat, pr_lon, v46_pr, lat, lon)
 
-    sr_u46 = u46_native - storm_u_native
-    sr_v46 = v46_native - storm_v_native
+    try:
+        u_stm_da = rrfs_idx_field(init_dt, fhr, [["UEID"], ["USTM"], ["BUNK"]], "Bunkers storm motion U", product="2dfld")
+        v_stm_da = rrfs_idx_field(init_dt, fhr, [["VEID"], ["VSTM"], ["BUNK"]], "Bunkers storm motion V", product="2dfld")
+
+        stm_lat, stm_lon = get_lat_lon(u_stm_da)
+
+        u_stm_native = interp_to_target_grid(
+            stm_lat,
+            stm_lon,
+            ensure_2d_field(u_stm_da, "Bunkers storm motion U"),
+            lat,
+            lon
+        )
+
+        v_stm_native = interp_to_target_grid(
+            stm_lat,
+            stm_lon,
+            ensure_2d_field(v_stm_da, "Bunkers storm motion V"),
+            lat,
+            lon
+        )
+
+        sr_u46 = u46_native - u_stm_native
+        sr_v46 = v46_native - v_stm_native
+        storm_motion_source = "RRFS UEID/VEID"
+
+        print("Using RRFS UEID/VEID Bunkers storm motion for SR winds.")
+
+    except Exception as e:
+        print("Could not find RRFS UEID/VEID storm motion. Falling back to manual storm motion.")
+        print(e)
+
+        storm_u_scalar, storm_v_scalar = wind_from_dir_speed_to_uv(
+            MANUAL_STORM_MOTION_FROM_DEG,
+            kt_to_ms(MANUAL_STORM_MOTION_SPEED_KT)
+        )
+
+        sr_u46 = u46_native - np.full_like(refl, storm_u_scalar)
+        sr_v46 = v46_native - np.full_like(refl, storm_v_scalar)
+        storm_motion_source = "Manual storm motion"
 
     return {
         "lat": lat,
@@ -693,6 +799,7 @@ def load_rrfs_fields_once(fhr):
         "theta_prime": theta_prime,
         "sr_u46": sr_u46,
         "sr_v46": sr_v46,
+        "storm_motion_source": storm_motion_source,
     }
 
 
@@ -720,6 +827,7 @@ def plot_domain_from_fields(fields, domain_key, cfg, fhr):
         theta_prime = fields["theta_prime"]
         sr_u46 = fields["sr_u46"]
         sr_v46 = fields["sr_v46"]
+        storm_motion_source = fields["storm_motion_source"]
 
         lat_sub, lon_sub, [
             refl_sub,
@@ -892,13 +1000,13 @@ def plot_domain_from_fields(fields, domain_key, cfg, fhr):
         valid_dt = init_dt + timedelta(hours=fhr)
 
         main_title = (
-            f"RRFS | {cfg['label']} | Refl, 2-5km UH > 75, "
-            "0-3km UH > 50, Sim. IR, θ Cold Pools, 4-6 km SR Winds"
+            "RRFS | Refl, 2-5km UH > 75, "
+            "0-3km UH > 50, θ Cold Pools, 4-6 km SR Winds"
         )
 
         ax.text(
             0.0,
-            1.045,
+            1.042,
             main_title,
             transform=ax.transAxes,
             ha="left",
@@ -909,7 +1017,7 @@ def plot_domain_from_fields(fields, domain_key, cfg, fhr):
 
         ax.text(
             0.0,
-            1.010,
+            1.005,
             f"F{fhr:03d} Valid: {valid_dt:%a %Y-%m-%d %HZ}",
             transform=ax.transAxes,
             ha="left",
@@ -920,7 +1028,7 @@ def plot_domain_from_fields(fields, domain_key, cfg, fhr):
 
         ax.text(
             1.0,
-            1.010,
+            1.005,
             f"Init: {init_dt:%a %Y-%m-%d %HZ} RRFS",
             transform=ax.transAxes,
             ha="right",
@@ -946,32 +1054,40 @@ def plot_domain_from_fields(fields, domain_key, cfg, fhr):
 
         if os.path.exists(LOGO_PATH):
             logo = mpimg.imread(LOGO_PATH)
-            logo_ax = fig.add_axes(cfg["logo_ax"], zorder=30)
-            logo_ax.imshow(logo)
-            logo_ax.axis("off")
 
-        fig.text(
-            cfg["office_text_xy"][0],
-            cfg["office_text_xy"][1],
+            ax.imshow(
+                logo,
+                extent=[0.82, 0.985, 0.84, 0.995],
+                transform=ax.transAxes,
+                zorder=50,
+                aspect="auto"
+            )
+
+        ax.text(
+            0.902,
+            0.835,
             "NWS North Platte, NE",
+            transform=ax.transAxes,
             ha="center",
             va="top",
             fontsize=10,
             fontweight="bold",
             color="black",
-            zorder=31,
+            zorder=51,
             path_effects=[pe.withStroke(linewidth=2.5, foreground="white")]
         )
 
-        fig.text(
-            cfg["credit_xy"][0],
-            cfg["credit_xy"][1],
-            "Plot created by: Matthew Labenz",
+        ax.text(
+            0.01,
+            0.015,
+            f"Plot created by: Matthew Labenz\nSR wind source: {storm_motion_source}",
+            transform=ax.transAxes,
             ha="left",
             va="bottom",
-            fontsize=9,
-            zorder=32,
+            fontsize=8,
             weight="bold",
+            color="black",
+            zorder=40,
             path_effects=[pe.withStroke(linewidth=2.5, foreground="white")]
         )
 
