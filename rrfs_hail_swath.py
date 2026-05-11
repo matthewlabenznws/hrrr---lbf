@@ -727,37 +727,34 @@ def plot_hail_domain(fields, domain_key, cfg, fhr):
     init_title = f"Init: {init_dt:%a %Y-%m-%d %HZ} RRFS_A"
 
     ax.text(
-        0.0,
-        1.025,
-        main_title,
-        transform=ax.transAxes,
-        ha="left",
-        va="bottom",
-        fontsize=cfg["title_size"],
-        fontweight="bold"
-    )
+            0.0, 1.042,
+            main_title,
+            transform=ax.transAxes,
+            ha="left",
+            va="bottom",
+            fontsize=cfg["title_size"],
+            fontweight="bold"
+        )
 
     ax.text(
-        0.0,
-        0.990,
-        valid_title,
-        transform=ax.transAxes,
-        ha="left",
-        va="bottom",
-        fontsize=cfg["subtitle_size"],
-        fontweight="bold"
-    )
+            0.0, 1.005,
+            valid_title,
+            transform=ax.transAxes,
+            ha="left",
+            va="bottom",
+            fontsize=cfg["subtitle_size"],
+            fontweight="bold"
+        )
 
     ax.text(
-        1.0,
-        0.990,
-        init_title,
-        transform=ax.transAxes,
-        ha="right",
-        va="bottom",
-        fontsize=cfg["subtitle_size"],
-        fontweight="bold"
-    )
+            1.0, 1.005,
+            init_title,
+            transform=ax.transAxes,
+            ha="right",
+            va="bottom",
+            fontsize=cfg["subtitle_size"],
+            fontweight="bold"
+        )
 
     divider = make_axes_locatable(ax)
 
