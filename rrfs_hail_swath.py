@@ -209,7 +209,7 @@ add_spc_severe_domain()
 VALID_RRFS_CYCLES = list(range(24))
 
 START_FHR = 1
-CYCLE_DELAY_MINUTES = 75
+CYCLE_DELAY_MINUTES = 45
 
 # 00/06/12/18 usually longer. Hourly cycles often shorter.
 LONG_CYCLE_HOURS = [0, 6, 12, 18]
