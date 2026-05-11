@@ -23,8 +23,8 @@ jobs:
 
       - name: Restore previous HRRR reflectivity runs
         run: |
-         mkdir -p site/runs/hrrr/refl_uh
-         cp -r old_site/runs/hrrr/refl_uh/* site/runs/hrrr/refl_uh/ || true
+          mkdir -p site/runs/hrrr/refl_uh
+          cp -r old_site/runs/hrrr/refl_uh/* site/runs/hrrr/refl_uh/ || true
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
