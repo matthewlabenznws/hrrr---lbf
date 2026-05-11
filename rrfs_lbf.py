@@ -1,7 +1,7 @@
 # ============================================================
-# RRFS | NWS LBF Viewer Product
+# RRFS_A | NWS LBF Viewer Product
 # Reflectivity + UH + Sim IR + Theta Cold Pools + 4–6 km SR Winds
-# Site-ready version with dynamic SPC severe domain
+# Uses hourly rrfs_a/rrfs.YYYYMMDD/HH links
 # ============================================================
 
 import os
@@ -48,7 +48,12 @@ if os.path.exists(zip_path):
 
 DATA_DIR = os.path.join(BASE_DIR, "rrfs_subsets")
 
-OUTDIR_BASE = os.path.join("site", "runs", "rrfs", "refl_uh")
+OUTDIR_BASE = os.path.join(
+    "site",
+    "runs",
+    "rrfs",
+    "refl_uh"
+)
 
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(OUTDIR_BASE, exist_ok=True)
@@ -66,6 +71,7 @@ DOMAINS = {
         "subtitle_size": 11,
         "barb_skip": 11,
     },
+
     "regional": {
         "label": "Default",
         "extent": [-107.5, -93.0, 38.5, 44.2],
@@ -73,6 +79,7 @@ DOMAINS = {
         "subtitle_size": 11,
         "barb_skip": 20,
     },
+
     "central_plains": {
         "label": "Central Plains",
         "extent": [-107.5, -91.0, 34.5, 45.2],
@@ -117,6 +124,7 @@ def fetch_spc_day1_geojson():
 
     r = requests.get(SPC_DAY1_CAT_URL, params=params, timeout=30)
     r.raise_for_status()
+
     data = r.json()
 
     if "features" not in data or len(data["features"]) == 0:
@@ -130,6 +138,7 @@ def add_spc_severe_domain():
         gdf = fetch_spc_day1_geojson().to_crs(epsg=4326)
 
         risk_col = None
+
         for col in gdf.columns:
             vals = gdf[col].astype(str).str.upper()
             if vals.isin(SPC_RISK_ORDER.keys()).any():
@@ -138,7 +147,6 @@ def add_spc_severe_domain():
 
         if risk_col is None:
             print("SPC severe domain skipped: could not find risk category column.")
-            print("SPC columns:", list(gdf.columns))
             return
 
         gdf["risk"] = gdf[risk_col].astype(str).str.upper()
@@ -155,13 +163,22 @@ def add_spc_severe_domain():
 
         highest_proj = highest.to_crs(epsg=5070)
         highest["_area"] = highest_proj.geometry.area.values
-        main_poly = highest.loc[highest["_area"].idxmax()]
 
+        main_poly = highest.loc[highest["_area"].idxmax()]
         highest_label = main_poly["risk"]
 
-        main_gdf = gpd.GeoDataFrame([main_poly], geometry="geometry", crs="EPSG:4326")
+        main_gdf = gpd.GeoDataFrame(
+            [main_poly],
+            geometry="geometry",
+            crs="EPSG:4326"
+        )
+
         centroid_proj = main_gdf.to_crs(epsg=5070).geometry.centroid
-        centroid_ll = gpd.GeoSeries(centroid_proj, crs="EPSG:5070").to_crs(epsg=4326).iloc[0]
+
+        centroid_ll = gpd.GeoSeries(
+            centroid_proj,
+            crs="EPSG:5070"
+        ).to_crs(epsg=4326).iloc[0]
 
         center_lon = centroid_ll.x
         center_lat = centroid_ll.y
@@ -182,7 +199,6 @@ def add_spc_severe_domain():
         }
 
         print(f"Added SPC severe domain: {highest_label}")
-        print(f"SPC severe center: lon={center_lon:.2f}, lat={center_lat:.2f}")
         print(f"SPC severe extent: {extent}")
 
     except Exception as e:
@@ -199,7 +215,11 @@ add_spc_severe_domain()
 VALID_RRFS_CYCLES = list(range(24))
 
 START_FHR = 1
-CYCLE_DELAY_MINUTES = 30
+CYCLE_DELAY_MINUTES = 75
+
+LONG_CYCLE_HOURS = [0, 6, 12, 18]
+MAX_FHR_LONG = 60
+MAX_FHR_SHORT = 18
 
 MANUAL_STORM_MOTION_FROM_DEG = 250
 MANUAL_STORM_MOTION_SPEED_KT = 35
@@ -357,10 +377,10 @@ def add_counties_clipped_to_cwa(ax, counties_shp_path, cwa_geom, lw=1.0, color="
 
 
 # ============================================================
-# RRFS PUBLIC URL / IDX BYTE-RANGE SUBSETTING
+# RRFS_A URL / IDX BYTE-RANGE SUBSETTING
 # ============================================================
 
-def rrfs_public_grib_url(init_dt, fhr, product="2dfld"):
+def rrfs_grib_url(init_dt, fhr, product="2dfld"):
     ymd = init_dt.strftime("%Y%m%d")
     hh = init_dt.strftime("%H")
 
@@ -373,7 +393,7 @@ def rrfs_public_grib_url(init_dt, fhr, product="2dfld"):
 
     return (
         f"https://noaa-rrfs-pds.s3.amazonaws.com/"
-        f"rrfs_public/rrfs.{ymd}/{hh}/{fname}"
+        f"rrfs_a/rrfs.{ymd}/{hh}/{fname}"
     )
 
 
@@ -385,7 +405,7 @@ def url_exists(url, timeout=10):
         return False
 
 
-def find_latest_available_rrfs_cycle(max_back_hours=96):
+def find_latest_available_rrfs_cycle(max_back_hours=48):
     now = datetime.now(timezone.utc) - timedelta(minutes=CYCLE_DELAY_MINUTES)
 
     for back in range(max_back_hours + 1):
@@ -396,14 +416,14 @@ def find_latest_available_rrfs_cycle(max_back_hours=96):
 
         dt = dt.replace(minute=0, second=0, microsecond=0, tzinfo=None)
 
-        test_url = rrfs_public_grib_url(dt, 1, product="2dfld") + ".idx"
+        test_url = rrfs_grib_url(dt, 1, product="2dfld") + ".idx"
 
         if url_exists(test_url):
-            print(f"Latest RRFS public cycle found: {dt:%Y%m%d} {dt:%HZ}")
+            print(f"Latest RRFS_A cycle found: {dt:%Y%m%d} {dt:%HZ}")
             print("Matched IDX:", test_url)
             return dt
 
-    raise RuntimeError("Could not find recent RRFS public cycle.")
+    raise RuntimeError("Could not find recent RRFS_A cycle.")
 
 
 def read_idx(idx_url):
@@ -453,13 +473,14 @@ def find_idx_match(parsed, all_terms, label):
             matches.append(item)
 
     if not matches:
-        sample = "\n".join([p["line"] for p in parsed[:100]])
+        sample = "\n".join([p["line"] for p in parsed[:150]])
         raise RuntimeError(
             f"Could not find {label} in IDX using terms {all_terms}.\n"
-            f"First 100 IDX lines:\n{sample}"
+            f"First 150 IDX lines:\n{sample}"
         )
 
     match = matches[0]
+
     print(f"Matched {label}:")
     print(match["line"])
 
@@ -510,7 +531,7 @@ def open_subset_grib(path, label):
 
 
 def rrfs_idx_field(init_dt, fhr, term_sets, label, product="2dfld"):
-    grib_url = rrfs_public_grib_url(init_dt, fhr, product=product)
+    grib_url = rrfs_grib_url(init_dt, fhr, product=product)
     idx_url = grib_url + ".idx"
 
     lines = read_idx(idx_url)
@@ -523,8 +544,9 @@ def rrfs_idx_field(init_dt, fhr, term_sets, label, product="2dfld"):
             match = find_idx_match(parsed, terms, label)
 
             safe_label = re.sub(r"[^A-Za-z0-9]+", "_", label).strip("_")
+
             outname = (
-                f"rrfs_{product}_{init_dt:%Y%m%d_%H}z_f{fhr:03d}_"
+                f"rrfs_a_{product}_{init_dt:%Y%m%d_%H}z_f{fhr:03d}_"
                 f"{safe_label}_{match['msg_num']}.grib2"
             )
 
@@ -566,6 +588,7 @@ def subset_2d(lat, lon, *fields):
 
     iy0 = max(iy.min() - 2, 0)
     iy1 = min(iy.max() + 3, lat.shape[0])
+
     ix0 = max(ix.min() - 2, 0)
     ix1 = min(ix.max() + 3, lon.shape[1])
 
@@ -606,24 +629,23 @@ def interp_to_target_grid(src_lat, src_lon, src_field, tgt_lat, tgt_lon):
 
 
 # ============================================================
-# FIND RRFS CYCLE
+# FIND RRFS_A CYCLE
 # ============================================================
 
 init_dt = find_latest_available_rrfs_cycle()
 cycle_str = init_dt.strftime("%Y%m%d_%Hz")
-#rrfs_init_label = init_dt.strftime("%Y%m%d_%Hz")
 
-if init_dt.hour in [0, 6, 12, 18]:
-    MAX_FHR = 60
+if init_dt.hour in LONG_CYCLE_HOURS:
+    MAX_FHR = MAX_FHR_LONG
 else:
-    MAX_FHR = 18
+    MAX_FHR = MAX_FHR_SHORT
 
 OUTDIR = os.path.join(OUTDIR_BASE, cycle_str)
 os.makedirs(OUTDIR, exist_ok=True)
 
 fhrs = range(START_FHR, MAX_FHR + 1)
 
-print("Using RRFS init:", init_dt.strftime("%Y-%m-%d %HZ"))
+print("Using RRFS_A init:", init_dt.strftime("%Y-%m-%d %HZ"))
 print("Forecast hours:", list(fhrs))
 print("Output directory:", OUTDIR)
 print("Domains:", list(DOMAINS.keys()))
@@ -637,13 +659,17 @@ lbf_geom = get_lbf_cwa_geom(LBF_CWA_SHP)
 
 def load_rrfs_fields_once(fhr):
     print("\n" + "=" * 70)
-    print(f"Loading RRFS | Init {init_dt:%Y-%m-%d %HZ} | F{fhr:03d}")
+    print(f"Loading RRFS_A | Init {init_dt:%Y-%m-%d %HZ} | F{fhr:03d}")
     print("=" * 70)
 
     refl_da = rrfs_idx_field(
         init_dt,
         fhr,
-        [["REFD", "1000 m"], ["REFC"], ["REFD"]],
+        [
+            ["REFD", "1000 m"],
+            ["REFC"],
+            ["REFD"],
+        ],
         "reflectivity",
         product="2dfld"
     )
@@ -657,7 +683,11 @@ def load_rrfs_fields_once(fhr):
         uh25_da = rrfs_idx_field(
             init_dt,
             fhr,
-            [["MXUPHL", "5000-2000"], ["MXUPHL", "5000 - 2000"]],
+            [
+                ["MXUPHL", "5000-2000"],
+                ["MXUPHL", "5000 - 2000"],
+                ["MXUPHL"],
+            ],
             "2-5km UH",
             product="2dfld"
         )
@@ -671,7 +701,10 @@ def load_rrfs_fields_once(fhr):
         uh03_da = rrfs_idx_field(
             init_dt,
             fhr,
-            [["MXUPHL", "3000-0"], ["MXUPHL", "3000 - 0"]],
+            [
+                ["MXUPHL", "3000-0"],
+                ["MXUPHL", "3000 - 0"],
+            ],
             "0-3km UH",
             product="2dfld"
         )
@@ -685,7 +718,14 @@ def load_rrfs_fields_once(fhr):
         ir_da = rrfs_idx_field(
             init_dt,
             fhr,
-            [["SBT123"], ["SBT124"], ["SBT", "123"], ["SBT", "124"], ["brightness"], ["satellite"]],
+            [
+                ["SBT123"],
+                ["SBT124"],
+                ["SBT", "123"],
+                ["SBT", "124"],
+                ["brightness"],
+                ["satellite"],
+            ],
             "simulated IR",
             product="2dfld"
         )
@@ -699,7 +739,10 @@ def load_rrfs_fields_once(fhr):
     t2_da = rrfs_idx_field(
         init_dt,
         fhr,
-        [["TMP", "2 m above ground"], ["TMP", "2 m"]],
+        [
+            ["TMP", "2 m above ground"],
+            ["TMP", "2 m"],
+        ],
         "2m temperature",
         product="2dfld"
     )
@@ -707,7 +750,9 @@ def load_rrfs_fields_once(fhr):
     ps_da = rrfs_idx_field(
         init_dt,
         fhr,
-        [["PRES", "surface"]],
+        [
+            ["PRES", "surface"],
+        ],
         "surface pressure",
         product="2dfld"
     )
@@ -750,8 +795,29 @@ def load_rrfs_fields_once(fhr):
     v46_native = interp_to_target_grid(pr_lat, pr_lon, v46_pr, lat, lon)
 
     try:
-        u_stm_da = rrfs_idx_field(init_dt, fhr, [["UEID"], ["USTM"], ["BUNK"]], "Bunkers storm motion U", product="2dfld")
-        v_stm_da = rrfs_idx_field(init_dt, fhr, [["VEID"], ["VSTM"], ["BUNK"]], "Bunkers storm motion V", product="2dfld")
+        u_stm_da = rrfs_idx_field(
+            init_dt,
+            fhr,
+            [
+                ["UEID"],
+                ["USTM"],
+                ["BUNK"],
+            ],
+            "Bunkers storm motion U",
+            product="2dfld"
+        )
+
+        v_stm_da = rrfs_idx_field(
+            init_dt,
+            fhr,
+            [
+                ["VEID"],
+                ["VSTM"],
+                ["BUNK"],
+            ],
+            "Bunkers storm motion V",
+            product="2dfld"
+        )
 
         stm_lat, stm_lon = get_lat_lon(u_stm_da)
 
@@ -773,12 +839,12 @@ def load_rrfs_fields_once(fhr):
 
         sr_u46 = u46_native - u_stm_native
         sr_v46 = v46_native - v_stm_native
-        storm_motion_source = "RRFS UEID/VEID"
 
-        print("Using RRFS UEID/VEID Bunkers storm motion for SR winds.")
+        storm_motion_source = "RRFS_A UEID/VEID"
+        print("Using RRFS_A UEID/VEID Bunkers storm motion for SR winds.")
 
     except Exception as e:
-        print("Could not find RRFS UEID/VEID storm motion. Falling back to manual storm motion.")
+        print("Could not find RRFS_A UEID/VEID storm motion. Falling back to manual storm motion.")
         print(e)
 
         storm_u_scalar, storm_v_scalar = wind_from_dir_speed_to_uv(
@@ -788,6 +854,7 @@ def load_rrfs_fields_once(fhr):
 
         sr_u46 = u46_native - np.full_like(refl, storm_u_scalar)
         sr_v46 = v46_native - np.full_like(refl, storm_v_scalar)
+
         storm_motion_source = "Manual storm motion"
 
     return {
@@ -1006,8 +1073,7 @@ def plot_domain_from_fields(fields, domain_key, cfg, fhr):
         )
 
         ax.text(
-            0.0,
-            1.042,
+            0.0, 1.042,
             main_title,
             transform=ax.transAxes,
             ha="left",
@@ -1017,9 +1083,8 @@ def plot_domain_from_fields(fields, domain_key, cfg, fhr):
         )
 
         ax.text(
-            0.0,
-            1.005,
-            f"F{fhr:03d} Valid: {valid_dt:%a %Y-%m-%d %HZ}",
+            0.0, 1.005,
+            valid_title,
             transform=ax.transAxes,
             ha="left",
             va="bottom",
@@ -1028,9 +1093,8 @@ def plot_domain_from_fields(fields, domain_key, cfg, fhr):
         )
 
         ax.text(
-            1.0,
-            1.005,
-            f"Init: {init_dt:%a %Y-%m-%d %HZ} RRFS",
+            1.0, 1.005,
+            init_title,
             transform=ax.transAxes,
             ha="right",
             va="bottom",
@@ -1039,7 +1103,13 @@ def plot_domain_from_fields(fields, domain_key, cfg, fhr):
         )
 
         divider = make_axes_locatable(ax)
-        cax = divider.append_axes("bottom", size="3%", pad=0.25, axes_class=plt.Axes)
+
+        cax = divider.append_axes(
+            "bottom",
+            size="3%",
+            pad=0.25,
+            axes_class=plt.Axes
+        )
 
         cbar = plt.colorbar(
             pm,
@@ -1054,35 +1124,35 @@ def plot_domain_from_fields(fields, domain_key, cfg, fhr):
         cbar.ax.tick_params(axis="x", which="both", length=0)
 
         if os.path.exists(LOGO_PATH):
-           logo = mpimg.imread(LOGO_PATH)
+            logo = mpimg.imread(LOGO_PATH)
 
-           logo_ax = ax.inset_axes(
-           [0.82, 0.84, 0.165, 0.155],
-           transform=ax.transAxes,
-           zorder=50
-           )
+            logo_ax = ax.inset_axes(
+                [0.82, 0.84, 0.165, 0.155],
+                transform=ax.transAxes,
+                zorder=50
+            )
 
-           logo_ax.imshow(logo)
-           logo_ax.axis("off")
+            logo_ax.imshow(logo)
+            logo_ax.axis("off")
 
         ax.text(
-        0.902,
-        0.835,
-        "NWS North Platte, NE",
-        transform=ax.transAxes,
-        ha="center",
-        va="top",
-        fontsize=10,
-        fontweight="bold",
-        color="black",
-        zorder=51,
-        path_effects=[pe.withStroke(linewidth=2.5, foreground="white")]
+            0.902,
+            0.835,
+            "NWS North Platte, NE",
+            transform=ax.transAxes,
+            ha="center",
+            va="top",
+            fontsize=10,
+            fontweight="bold",
+            color="black",
+            zorder=51,
+            path_effects=[pe.withStroke(linewidth=2.5, foreground="white")]
         )
 
         ax.text(
             0.01,
             0.015,
-            f"Plot created by: Matthew Labenz\nSR wind source: {storm_motion_source}",
+            "Plot created by: Matthew Labenz",
             transform=ax.transAxes,
             ha="left",
             va="bottom",
@@ -1117,3 +1187,5 @@ for fhr in fhrs:
 
     except Exception as e:
         print(f"FAILED F{fhr:03d}: {e}")
+
+print("Done. Images saved to:", OUTDIR)
