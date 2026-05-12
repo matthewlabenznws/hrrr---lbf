@@ -382,20 +382,63 @@ def url_exists(url, timeout=10):
 
 
 def find_latest_available_rrfs_cycle(max_back_hours=48):
+    """
+    Prefer 00/06/12/18 long RRFS_A cycles for several hours after init,
+    but still allow hourly cycles outside that window.
+    """
+
+    PREFERRED_CYCLES = [0, 12]
+    PREFERRED_CYCLE_GRACE_MINUTES = 120 
+    REQUIRED_TEST_FHR_LONG = 60
+    REQUIRED_TEST_FHR_HOURLY = 1
+
     now = datetime.now(timezone.utc) - timedelta(minutes=CYCLE_DELAY_MINUTES)
+    now_naive = now.replace(tzinfo=None)
 
+    # ------------------------------------------------------------
+    # 1. First try preferred long cycles if within grace window
+    # ------------------------------------------------------------
+    for pref_hour in PREFERRED_CYCLES:
+        candidate = now_naive.replace(
+            hour=pref_hour,
+            minute=0,
+            second=0,
+            microsecond=0
+        )
+
+        # If preferred hour is in the future, use previous day's cycle
+        if candidate > now_naive:
+            candidate -= timedelta(days=1)
+
+        age_minutes = (now_naive - candidate).total_seconds() / 60.0
+
+        if 0 <= age_minutes <= PREFERRED_CYCLE_GRACE_MINUTES:
+            test_url = rrfs_grib_url(candidate, REQUIRED_TEST_FHR_LONG) + ".idx"
+
+            print(
+                f"Checking preferred RRFS_A long cycle: "
+                f"{candidate:%Y%m%d} {candidate:%HZ} "
+                f"age={age_minutes:.0f} min"
+            )
+
+            if url_exists(test_url):
+                print(f"Using preferred long RRFS_A cycle: {candidate:%Y%m%d} {candidate:%HZ}")
+                print("Matched IDX:", test_url)
+                return candidate
+            else:
+                print("Preferred long cycle not fully available yet:", test_url)
+
+    # ------------------------------------------------------------
+    # 2. Otherwise use latest available hourly cycle
+    # ------------------------------------------------------------
     for back in range(max_back_hours + 1):
-        dt = now - timedelta(hours=back)
+        dt = now_naive - timedelta(hours=back)
+        dt = dt.replace(minute=0, second=0, microsecond=0)
 
-        if dt.hour not in VALID_RRFS_CYCLES:
-            continue
-
-        dt = dt.replace(minute=0, second=0, microsecond=0, tzinfo=None)
-
-        test_url = rrfs_grib_url(dt, 1) + ".idx"
+        test_url = rrfs_grib_url(dt, REQUIRED_TEST_FHR_HOURLY) + ".idx"
 
         if url_exists(test_url):
-            print(f"Latest RRFS_A cycle found: {dt:%Y%m%d} {dt:%HZ}")
+            print(f"Using latest available hourly RRFS_A cycle: {dt:%Y%m%d} {dt:%HZ}")
             print("Matched IDX:", test_url)
             return dt
 
