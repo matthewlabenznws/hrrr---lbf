@@ -51,7 +51,7 @@ DATA_DIR = os.path.join(BASE_DIR, "refs_mem02_subsets")
 OUTDIR_BASE = os.path.join(
     "site",
     "runs",
-    "refs_mem03",
+    "refs_mem02",
     "refl_uh"
 )
 
