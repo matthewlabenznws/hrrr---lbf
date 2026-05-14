@@ -185,12 +185,35 @@ let runsByModelProduct = {
     refl_uh: [],
     hail_swath: []
   }
+    refs_mem02: {
+    refl_uh: [],
+    hail_swath: []
+  },
+
+  refs_mem03: {
+    refl_uh: [],
+    hail_swath: []
+  },
+
+  refs_mem04: {
+    refl_uh: [],
+    hail_swath: []
+  },
+
+  refs_mem05: {
+    refl_uh: [],
+    hail_swath: []
+  }
 };
 
 const models = {
   "hrrr": "HRRR",
   "rrfs": "RRFS",
   "refs_mem01": "REFS M01"
+  "refs_mem02": "REFS M02",
+  "refs_mem03": "REFS M03",
+  "refs_mem04": "REFS M04",
+  "refs_mem05": "REFS M05"
 };
 
 const domains = {
@@ -248,6 +271,10 @@ async function loadAllRuns() {
     loadRunsJson("rrfs", "hail_swath"),
 
     loadRunsJson("refs_mem01", "refl_uh")
+    loadRunsJson("refs_mem02", "refl_uh"),
+    loadRunsJson("refs_mem03", "refl_uh"),
+    loadRunsJson("refs_mem04", "refl_uh"),
+    loadRunsJson("refs_mem05", "refl_uh")
   ]);
 }
 
@@ -301,6 +328,18 @@ function imgSrc(run, fhr) {
 
   } else if (selectedModel === "refs_mem01" && selectedProduct === "refl_uh") {
     filename = "refs_mem01_lbf_f" + fhrName(fhr) + ".png";
+  
+   } else if (selectedModel === "refs_mem02" && selectedProduct === "refl_uh") {
+    filename = "refs_mem02_lbf_f" + fhrName(fhr) + ".png";
+
+  } else if (selectedModel === "refs_mem03" && selectedProduct === "refl_uh") {
+    filename = "refs_mem03_lbf_f" + fhrName(fhr) + ".png";
+
+  } else if (selectedModel === "refs_mem04" && selectedProduct === "refl_uh") {
+    filename = "refs_mem04_lbf_f" + fhrName(fhr) + ".png";
+
+  } else if (selectedModel === "refs_mem05" && selectedProduct === "refl_uh") {
+    filename = "refs_mem05_lbf_f" + fhrName(fhr) + ".png";
 
   } else {
     return "";
