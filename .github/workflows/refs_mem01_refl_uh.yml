@@ -73,9 +73,9 @@ jobs:
           mkdir -p gh-pages-work/runs/refs_mem01
 
           rm -rf gh-pages-work/runs/refs_mem01/refl_uh
-          cp -r product-output/refl_uh gh-pages-work/runs/refs_mem01/refl_uh
+          cp -r product-output/site/runs/refs_mem01/refl_uh gh-pages-work/runs/refs_mem01/refl_uh
 
-          cp product-output/index.html gh-pages-work/index.html
+          cp product-output/site/index.html gh-pages-work/index.html
 
           cd gh-pages-work
 
