@@ -1,5 +1,7 @@
 {
   "model": "refs_mem03",
   "product": "refl_uh",
-  "runs": []
+  "runs": [
+    "20260515_12z"
+  ]
 }
